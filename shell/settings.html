@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <!-- Pre-paint theme stamp for webview-loaded shell pages.
+       The main BrowserWindow gets the theme via preload+additionalArguments,
+       but webviews don't inherit that path — so we do a tiny sync XHR here to
+       stamp data-theme before the inline <style> blocks are processed by the
+       parser. Sync XHR is deprecated (console warning), but it's the only way
+       to avoid a dark→light flash. Fails silently if the API isn't up. -->
+  <script src="js/api-base.js"></script>
+  <script src="js/theme-stamp.js"></script>
+  <script src="js/html-escape.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tandem — Settings</title>
+  <script type="module" src="js/theme.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    /* Dark theme (default) */
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --surface2: #1c2a4a;
+      --accent: #e94560;
+      --text: #eee;
+      --text-dim: #888;
+      --input-bg: #0f3460;
+      --success: #4ecca3;
+      --warning: #f0a500;
+      --border: rgba(255,255,255,0.08);
+      --danger: #e94560;
+    }
+
+    /* Light theme */
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface2: #f1f5f9;
+      --accent: #e94560;
+      --text: #1e293b;
+      --text-dim: #64748b;
+      --input-bg: #f1f5f9;
+      --success: #059669;
+      --warning: #d97706;
+      --border: rgba(0,0,0,0.08);
+      --danger: #e94560;
+    }
+
+    /* System preference detection */
+    @media (prefers-color-scheme: light) {
+      [data-theme="system"] {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --surface2: #f1f5f9;
+        --accent: #e94560;
+        --text: #1e293b;
+        --text-dim: #64748b;
+        --input-bg: #f1f5f9;
+        --success: #059669;
+        --warning: #d97706;
+        --border: rgba(0,0,0,0.08);
+        --danger: #e94560;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+
+    .settings-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .settings-header h1 { font-size: 22px; font-weight: 600; }
+    .settings-header .logo { font-size: 28px; }
+    .settings-header .version { font-size: 12px; color: var(--text-dim); margin-left: auto; }
+
+    .settings-nav {
+      position: fixed;
+      left: 0;
+      top: 76px;
+      bottom: 0;
+      width: 200px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      overflow-y: auto;
+    }
+    .settings-nav a {
+      display: block;
+      padding: 10px 24px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .settings-nav a:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .settings-nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(233,69,96,0.08); }
+
+    .settings-body {
+      margin-left: 200px;
+      padding: 32px 40px 60px;
+      max-width: 720px;
+    }
+
+    .section { margin-bottom: 40px; }
+    .section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section .section-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    .field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      gap: 16px;
+    }
+    .field-info { flex: 1; }
+    .field-label { font-size: 13px; font-weight: 500; }
+    .field-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+    select, input[type="text"], input[type="url"], input[type="number"] {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 12px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      min-width: 180px;
+    }
+    select:focus, input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #333;
+      border-radius: 24px;
+      transition: 0.2s;
+    }
+    .toggle .slider:before {
+      content: "";
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .toggle input:checked + .slider { background: var(--accent); }
+    .toggle input:checked + .slider:before { transform: translateX(20px); }
+    .toggle input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+
+    /* Range slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 120px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--input-bg);
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .range-value { font-size: 13px; color: var(--text); min-width: 24px; text-align: center; }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-danger { background: rgba(233,69,96,0.2); color: var(--danger); border: 1px solid var(--danger); }
+    .btn-danger:hover { background: rgba(233,69,96,0.35); }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .field-stack {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .field-stack .field-info {
+      width: 100%;
+    }
+
+    .quick-link-editor {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .quick-link-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .quick-link-row {
+      display: grid;
+      grid-template-columns: minmax(0, 160px) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .quick-link-empty {
+      padding: 10px 12px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-card .stat-value { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .stat-card .stat-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+    /* Tooltip */
+    .tooltip {
+      position: relative;
+      cursor: help;
+      border-bottom: 1px dotted var(--text-dim);
+    }
+    .tooltip:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #000;
+      color: var(--text);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      white-space: pre-line;
+      max-width: 260px;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--success);
+      color: #111;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Confirm modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 400px;
+      text-align: center;
+    }
+    .modal h3 { margin-bottom: 12px; }
+    .modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; }
+    .modal .btn-group { justify-content: center; }
+
+    /* ═══ Extensions UI ═══ */
+    .ext-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .ext-tabs button {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-dim);
+      font-size: 13px;
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ext-tabs button:hover { color: var(--text); }
+    .ext-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .ext-tab-content { display: none; }
+    .ext-tab-content.active { display: block; }
+
+    .ext-card {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      gap: 12px;
+    }
+    .ext-card-info { flex: 1; min-width: 0; }
+    .ext-card-name { font-size: 13px; font-weight: 500; }
+    .ext-card-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .ext-card-meta { font-size: 10px; color: var(--text-dim); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .ext-card-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+    .ext-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    .ext-badge-loaded { background: rgba(78,204,163,0.15); color: var(--success); }
+    .ext-badge-notloaded { background: rgba(240,165,0,0.15); color: var(--warning); }
+    .ext-badge-error { background: rgba(233,69,96,0.15); color: var(--danger); }
+    .ext-badge-update { background: rgba(100,149,237,0.2); color: #6495ed; }
+    .ext-badge-installed { background: rgba(78,204,163,0.15); color: var(--success); }
+    .ext-badge-imported { background: rgba(78,204,163,0.15); color: var(--success); }
+    .ext-badge-works { background: rgba(78,204,163,0.15); color: var(--success); }
+    .ext-badge-partial { background: rgba(240,165,0,0.15); color: var(--warning); }
+    .ext-badge-needs-work { background: rgba(233,69,96,0.15); color: var(--danger); }
+    .ext-badge-dnr { background: rgba(240,165,0,0.15); color: var(--warning); }
+    .ext-badge-native { background: rgba(100,149,237,0.2); color: #6495ed; }
+    .ext-badge-featured { background: rgba(233,69,96,0.12); color: var(--accent); }
+
+    .ext-category-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .ext-category-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 4px 12px;
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ext-category-pill:hover { color: var(--text); border-color: var(--text-dim); }
+    .ext-category-pill.active { color: var(--accent); border-color: var(--accent); background: rgba(233,69,96,0.08); }
+
+    .ext-empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .ext-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .ext-header-row .field-desc { margin: 0; }
+
+    .btn-sm {
+      padding: 5px 12px;
+      font-size: 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-sm.btn-primary { background: var(--accent); color: #fff; }
+    .btn-sm.btn-primary:hover { opacity: 0.85; }
+    .btn-sm.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm.btn-danger { background: rgba(233,69,96,0.2); color: var(--danger); }
+    .btn-sm.btn-danger:hover { background: rgba(233,69,96,0.35); }
+    .btn-sm.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-sm.btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .ext-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: ext-spin 0.6s linear infinite;
+    }
+    @keyframes ext-spin { to { transform: rotate(360deg); } }
+
+    .ext-error-msg {
+      font-size: 11px;
+      color: var(--danger);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="settings-header">
+    <span class="logo">🧀</span>
+    <h1>Tandem Settings</h1>
+    <span class="version">v0.67.0</span>
+  </div>
+
+  <nav class="settings-nav" id="settings-nav">
+    <a href="#general" class="active" data-section="general">⚙️ General</a>
+    <a href="#screenshots" data-section="screenshots">📸 Screenshots</a>
+    <a href="#voice" data-section="voice">🎙️ Voice</a>
+    <a href="#appearance" data-section="appearance">🎨 Theme</a>
+    <a href="#stealth" data-section="stealth">🛡️ Stealth</a>
+    <a href="#sync" data-section="sync">🔄 Sync</a>
+    <a href="#behavior" data-section="behavior">🧬 Behavioral Learning</a>
+    <a href="#autonomy" data-section="autonomy">🤖 AI Autonomy</a>
+    <a href="#data" data-section="data">💾 Data</a>
+    <a href="#extensions" data-section="extensions">🧩 Extensions</a>
+    <a href="#agents" data-section="agents">🔗 Connected Agents</a>
+  </nav>
+
+  <div class="settings-body">
+
+    <!-- ═══ General ═══ -->
+    <div class="section" id="general">
+      <h2>⚙️ General</h2>
+      <p class="section-desc">Basic settings for Tandem Browser</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Start page</div>
+          <div class="field-desc">Which page opens on a new tab?</div>
+        </div>
+        <select id="cfg-startPage">
+          <option value="wingman">Wingman (New Tab)</option>
+          <option value="duckduckgo">DuckDuckGo</option>
+          <option value="custom">Custom URL</option>
+        </select>
+      </div>
+
+      <div class="field" id="field-customStartUrl" style="display:none;">
+        <div class="field-info">
+          <div class="field-label">Custom start URL</div>
+        </div>
+        <input type="url" id="cfg-customStartUrl" placeholder="https://example.com" />
+      </div>
+
+      <div class="field field-stack">
+        <div class="field-info">
+          <div class="field-label">Quick links</div>
+          <div class="field-desc">Choose the shortcuts shown on the new tab page</div>
+        </div>
+        <div class="quick-link-editor">
+          <div class="quick-link-list" id="cfg-quickLinks"></div>
+          <div class="btn-group">
+            <button type="button" class="btn btn-secondary" id="btn-addQuickLink">+ Add link</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="opacity:0.45;pointer-events:none;">
+        <div class="field-info">
+          <div class="field-label">Language <span style="font-size:11px;color:#999;font-weight:normal;">— Coming soon</span></div>
+          <div class="field-desc">Interface and search language</div>
+        </div>
+        <select id="cfg-language" disabled>
+          <option value="en-US">English (US)</option>
+        </select>
+      </div>
+
+      <div class="field" style="opacity:0.45;pointer-events:none;">
+        <div class="field-info">
+          <div class="field-label">Wingman panel default open <span style="font-size:11px;color:#999;font-weight:normal;">— Coming soon</span></div>
+          <div class="field-desc">Panel auto-open on startup</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-wingmanPanelDefaultOpen" disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field" style="opacity:0.45;pointer-events:none;">
+        <div class="field-info">
+          <div class="field-label">Show bookmarks bar <span style="font-size:11px;color:#999;font-weight:normal;">— Coming soon</span></div>
+          <div class="field-desc">Show the bookmarks bar below the address bar (Cmd+Shift+B)</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-showBookmarksBar" disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- ═══ Screenshots ═══ -->
+    <div class="section" id="screenshots">
+      <h2>📸 Screenshots</h2>
+      <p class="section-desc">Where are screenshots saved?</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">To clipboard</div>
+          <div class="field-desc">Always on — every screenshot goes to your clipboard</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" checked disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Local folder</div>
+          <div class="field-desc">Save screenshots as files</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-localFolder">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field" id="field-localFolderPath">
+        <div class="field-info">
+          <div class="field-label">Storage path</div>
+          <div class="field-desc" id="cfg-localFolderPath-display" style="font-size:12px;color:var(--text-dim);margin-top:2px;word-break:break-all;">~/Pictures/Tandem/</div>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-chooseFolder">Choose folder…</button>
+        <input type="hidden" id="cfg-localFolderPath" />
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Apple Photos</div>
+          <div class="field-desc">Auto-import screenshots to Apple Photos (macOS only)</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-applePhotos">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Google Photos</div>
+          <div class="field-desc">Auto-upload screenshots to your Google Photos library</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-googlePhotos">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field" id="field-googlePhotosClientId">
+        <div class="field-info">
+          <div class="field-label">Desktop OAuth Client ID</div>
+          <div class="field-desc">Use your own Google desktop app client ID. Stored locally only.</div>
+        </div>
+        <input type="text" id="cfg-googlePhotosClientId" placeholder="1234567890-abc123.apps.googleusercontent.com" />
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Connection</div>
+          <div class="field-desc" id="googlePhotosStatus">Not connected</div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="btn-googlePhotosConnect" type="button">Connect</button>
+          <button class="btn btn-danger" id="btn-googlePhotosDisconnect" type="button">Disconnect</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Voice ═══ -->
+    <div class="section" id="voice">
+      <h2>🎙️ Voice</h2>
+      <p class="section-desc">Voice input settings</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Input language</div>
+          <div class="field-desc">Language for speech recognition</div>
+        </div>
+        <select id="cfg-voiceLanguage">
+          <option value="nl-BE">Dutch (Belgium)</option>
+          <option value="nl-NL">Dutch (Netherlands)</option>
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="de-DE">German</option>
+          <option value="fr-FR">French</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Auto-send after silence</div>
+          <div class="field-desc">Auto-send message after a pause in speaking</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-autoSendOnSilence">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Silence timeout</div>
+          <div class="field-desc">Wait this long after last word before auto-send</div>
+        </div>
+        <div class="range-wrap">
+          <input type="range" id="cfg-silenceTimeout" min="1" max="5" step="0.5" value="2">
+          <span class="range-value" id="silenceTimeoutVal">2s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Appearance ═══ -->
+    <div class="section" id="appearance">
+      <h2>🎨 Theme</h2>
+      <p class="section-desc">Color scheme and visual settings</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Color scheme</div>
+          <div class="field-desc">Choose between dark, light or system preference</div>
+        </div>
+        <select id="cfg-theme">
+          <option value="dark">🌙 Dark</option>
+          <option value="light">☀️ Light</option>
+          <option value="system">🔄 System</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Help link</div>
+          <div class="field-desc">Quick access to help and shortcuts</div>
+        </div>
+        <button type="button" class="btn btn-secondary" id="open-help-btn">
+          📖 Open Help Page
+        </button>
+      </div>
+
+      <!-- Liquid Glass Lite Settings -->
+      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border);">
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          ✨ Liquid Glass Effects
+        </h3>
+        <p class="section-desc" style="margin-bottom: 16px;">
+          Advanced glass morphism with subtle lensing and depth. Creates semi-transparent UI that shows through to content below.
+        </p>
+
+        <div class="field">
+          <div class="field-info">
+            <div class="field-label">Enable Liquid Glass</div>
+            <div class="field-desc">Apply glass effects to browser chrome (tab bar, toolbar, panels)</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="cfg-lgl-enabled" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="field">
+          <div class="field-info">
+            <div class="field-label">Glass blur intensity</div>
+            <div class="field-desc">
+              How much blur to apply to glass surfaces (<span id="lgl-blur-value">20</span>px)
+            </div>
+          </div>
+          <input type="range" id="cfg-lgl-blur" min="10" max="30" value="20" 
+                 style="width: 180px; height: 6px; border-radius: 3px; background: var(--input-bg); outline: none; -webkit-appearance: none;">
+        </div>
+
+        <div class="field" style="opacity: 0.5; pointer-events: none;">
+          <div class="field-info">
+            <div class="field-label">Refraction strength</div>
+            <div class="field-desc">
+              WebGL lensing intensity (<span id="lgl-refraction-value">15</span>%) — requires full LGL package
+            </div>
+          </div>
+          <input type="range" id="cfg-lgl-refraction" min="0" max="100" value="15" 
+                 style="width: 180px; height: 6px; border-radius: 3px; background: var(--input-bg); outline: none; -webkit-appearance: none;">
+        </div>
+
+        <div class="field" style="background: rgba(233, 69, 96, 0.1); border-color: rgba(233, 69, 96, 0.3);">
+          <div class="field-info">
+            <div class="field-label">⚠️ Performance Note</div>
+            <div class="field-desc">
+              CSS-first glass (T1 Static tier) is currently active. Full WebGL lensing will be available when @mblock/liquid-glass package is integrated.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Stealth ═══ -->
+    <div class="section" id="stealth">
+      <h2>🛡️ Stealth</h2>
+      <p class="section-desc">Anti-detection settings — keep Tandem invisible</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">User-Agent</div>
+          <div class="field-desc">Automatically matches the latest Chrome version</div>
+        </div>
+        <select id="cfg-userAgent">
+          <option value="auto">Auto (match Chrome)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+
+      <div class="field" id="field-customUserAgent" style="display:none;">
+        <div class="field-info">
+          <div class="field-label">Custom User-Agent</div>
+        </div>
+        <input type="text" id="cfg-customUserAgent" placeholder="Mozilla/5.0 ..." />
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Stealth Level</div>
+          <div class="field-desc">
+            <span class="tooltip" data-tip="Low: Basic UA + header patches&#10;Medium: + navigator/chrome mocks, fingerprint patches&#10;High: + canvas/WebGL randomization, timing humanization">Hover for explanation per level</span>
+          </div>
+        </div>
+        <select id="cfg-stealthLevel">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Accept-Language</div>
+          <div class="field-desc">Auto follows your language setting</div>
+        </div>
+        <select id="cfg-acceptLanguage">
+          <option value="auto">Auto</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+
+      <div class="field" id="field-customAcceptLanguage" style="display:none;">
+        <div class="field-info">
+          <div class="field-label">Custom Accept-Language</div>
+        </div>
+        <input type="text" id="cfg-customAcceptLanguage" placeholder="nl-BE,nl;q=0.9,en-US;q=0.8" />
+      </div>
+    </div>
+
+    <!-- ═══ Sync ═══ -->
+    <div class="section" id="sync">
+      <h2>🔄 Sync</h2>
+      <p class="section-desc">Sync data from Chrome</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Chrome bookmarks sync</div>
+          <div class="field-desc">Auto-import and sync bookmarks from Google Chrome</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-chromeBookmarks">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field" id="field-chromeProfile">
+        <div class="field-info">
+          <div class="field-label">Chrome profile</div>
+          <div class="field-desc">Select which Chrome profile to sync</div>
+        </div>
+        <select id="cfg-chromeProfile">
+          <option value="Default">Default</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Sync status</div>
+          <div class="field-desc" id="sync-status-text">Not active</div>
+        </div>
+        <button class="btn btn-secondary" id="btn-syncNow">🔄 Sync now</button>
+      </div>
+    </div>
+
+    <!-- ═══ Behavioral Learning ═══ -->
+    <div class="section" id="behavior">
+      <h2>🧬 Behavioral Learning</h2>
+      <p class="section-desc">Tandem learns your browsing patterns for natural automation</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Tracking on</div>
+          <div class="field-desc">Record mouse, scroll, keyboard and navigation patterns</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-trackingEnabled">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Clear behavioral data</div>
+          <div class="field-desc">Delete all stored behavioral data</div>
+        </div>
+        <button class="btn btn-danger" id="btn-clearBehavior">Clear data</button>
+      </div>
+
+      <h3 style="font-size:14px;margin:16px 0 8px;">📊 Statistieken</h3>
+      <div class="stats-grid" id="behavior-stats">
+        <div class="stat-card"><div class="stat-value" id="stat-todayEvents">—</div><div class="stat-label">Events vandaag</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-totalFiles">—</div><div class="stat-label">Dagen gelogd</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-sessionEvents">—</div><div class="stat-label">Sessie events</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-avgKeypress">—</div><div class="stat-label">Gem. keypress (ms)</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-avgClick">—</div><div class="stat-label">Gem. click delay (ms)</div></div>
+      </div>
+    </div>
+
+    <!-- ═══ AI Autonomy ═══ -->
+    <div class="section" id="autonomy">
+      <h2>🤖 AI Autonomy</h2>
+      <p class="section-desc">Configure what Wingman/Claude can do automatically without asking</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Read pages without asking</div>
+          <div class="field-desc">Screenshots, scrolling, reading text</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-autoApproveRead">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Navigate without asking</div>
+          <div class="field-desc">Navigate to URLs, open/close tabs</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-autoApproveNavigate">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Click without asking</div>
+          <div class="field-desc">Click links and buttons</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-autoApproveClick">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Type text without asking</div>
+          <div class="field-desc">Fill text in search fields and inputs</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-autoApproveType">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Fill forms without asking</div>
+          <div class="field-desc">Auto-fill and submit forms</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-autoApproveForms">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field" style="flex-direction:column;align-items:flex-start;">
+        <div class="field-info" style="margin-bottom:8px;">
+          <div class="field-label">Vertrouwde sites</div>
+          <div class="field-desc">On these sites the AI can do more automatically</div>
+        </div>
+        <textarea id="cfg-trustedSites" style="width:100%;min-height:60px;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;resize:vertical;" placeholder="google.com&#10;wikipedia.org&#10;duckduckgo.com"></textarea>
+      </div>
+    </div>
+
+    <!-- ═══ Data ═══ -->
+    <div class="section" id="data">
+      <h2>💾 Data</h2>
+      <p class="section-desc">Export, import or clear all your Tandem data</p>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Export all data</div>
+          <div class="field-desc">Bookmarks, history, chat, behavioral data — als JSON</div>
+        </div>
+        <button class="btn btn-secondary" id="btn-export">📦 Export</button>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Import data</div>
+          <div class="field-desc">Restore a previously exported Tandem backup</div>
+        </div>
+        <button class="btn btn-secondary" id="btn-import">📥 Import</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" />
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Clear all data</div>
+          <div class="field-desc">⚠️ This deletes EVERYTHING — chat, config, behavioral data</div>
+        </div>
+        <button class="btn btn-danger" id="btn-wipe">🗑 Clear all</button>
+      </div>
+    </div>
+
+    <!-- ═══ Extensions ═══ -->
+    <div class="section" id="extensions">
+      <h2>🧩 Extensions</h2>
+      <p class="section-desc">Manage browser extensions, import from Chrome, or discover new ones</p>
+
+      <div class="ext-tabs" id="ext-tabs">
+        <button class="active" data-tab="ext-installed">Installed</button>
+        <button data-tab="ext-chrome">From Chrome</button>
+        <button data-tab="ext-gallery">Gallery</button>
+      </div>
+
+      <!-- Installed tab -->
+      <div class="ext-tab-content active" id="ext-installed">
+        <div class="ext-header-row" id="ext-update-header" style="display:none">
+          <div class="field-desc" id="ext-update-status-text">Checking for updates...</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-sm btn-secondary" id="ext-check-updates-btn">Check for Updates</button>
+            <button class="btn-sm btn-primary" id="ext-update-all-btn" style="display:none">Update All</button>
+          </div>
+        </div>
+        <div id="ext-installed-list"></div>
+      </div>
+
+      <!-- From Chrome tab -->
+      <div class="ext-tab-content" id="ext-chrome">
+        <div class="ext-header-row">
+          <div class="field-desc">Import extensions from your Chrome browser</div>
+          <button class="btn-sm btn-secondary" id="ext-chrome-import-all">Import All</button>
+        </div>
+        <div id="ext-chrome-list"></div>
+      </div>
+
+      <!-- Gallery tab -->
+      <div class="ext-tab-content" id="ext-gallery">
+        <div class="ext-category-filters" id="ext-gallery-filters"></div>
+        <div id="ext-gallery-list"></div>
+      </div>
+    </div>
+
+    <!-- ═══ Connected Agents ═══ -->
+    <div class="section" id="agents">
+      <h2>🔗 Connect your AI to Tandem</h2>
+      <p class="section-desc">Let your AI agent work with you in Tandem Browser</p>
+
+      <div class="field field-stack">
+        <div class="field-info">
+          <div class="field-label">Agent API settings</div>
+          <div class="field-desc">Changing the port requires restarting Tandem.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:10px;align-items:center;">
+          <div>
+            <div class="field-label" style="font-size:12px;">API port</div>
+            <div class="field-desc">Default: 8765</div>
+          </div>
+          <input type="number" id="cfg-apiPort" min="1" max="65535" step="1" inputmode="numeric" />
+        </div>
+        <div class="field-desc" id="agent-api-validation" style="color:var(--danger);display:none;"></div>
+        <div style="display:grid;gap:6px;font-size:12px;color:var(--text-dim);">
+          <div>Local endpoint: <strong style="color:var(--text)" id="agent-api-local-preview">http://127.0.0.1:8765</strong></div>
+          <div>Remote endpoint: <strong style="color:var(--text)" id="agent-api-remote-preview">Checking Tailscale...</strong></div>
+          <div>Listen host: <strong style="color:var(--text)" id="agent-api-listen-host">0.0.0.0</strong></div>
+        </div>
+      </div>
+
+      <!-- Onboarding: mode selector -->
+      <div class="field-group" id="agent-onboard">
+        <label class="field-label">Where is your AI running?</label>
+        <div style="display: flex; gap: 10px; margin-top: 8px;" id="agent-mode-btns">
+          <button class="btn btn-primary" id="agent-mode-local-btn">On this machine</button>
+          <button class="btn btn-secondary" id="agent-mode-remote-btn">On another machine</button>
+        </div>
+      </div>
+
+      <!-- Mode detail + code generation area -->
+      <div class="field-group" id="agent-mode-detail" style="display:none; margin-top: 16px;">
+        <div id="agent-mode-info"></div>
+        <div style="margin-top: 12px;">
+          <button class="btn btn-primary" id="agent-connect-btn">Generate connection instructions</button>
+        </div>
+      </div>
+
+      <!-- Active code + instruction block -->
+      <div id="agent-instruction-area" style="display:none; margin-top: 16px;">
+        <div style="background: var(--input-bg); border-radius: 8px; padding: 16px; text-align: center;">
+          <div style="font-size: 24px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 2px; margin-bottom: 8px;" id="agent-code-display"></div>
+          <div style="font-size: 12px; color: var(--text-dim);" id="agent-code-timer"></div>
+        </div>
+        <div style="margin-top: 12px;">
+          <label class="field-label">Give this to your AI</label>
+          <p class="field-desc">Copy the text below and paste it into your AI agent. It contains everything your AI needs to connect.</p>
+          <textarea id="agent-instruction-text" readonly rows="10"
+            style="width:100%;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:12px;resize:vertical;margin-top:8px;"></textarea>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn btn-sm btn-primary" id="agent-copy-instructions-btn">Copy instructions</button>
+          <button class="btn btn-sm btn-secondary" id="agent-cancel-code-btn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Bindings list -->
+      <div class="field-group" style="margin-top: 28px;">
+        <label class="field-label">Connected agents</label>
+        <div id="agent-bindings-list">
+          <p class="field-desc" id="agent-no-bindings">No agents connected yet.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">Saved ✓</div>
+
+  <!-- Confirm modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <h3 id="modal-title">Are you sure?</h3>
+      <p id="modal-text">This cannot be undone.</p>
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api-auth.js"></script>
+  <script src="js/shortcut-labels.js"></script>
+  <script src="js/pages/settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+node_modules/
+dist/
+release/
+*.lock
+*.log
+.playwright-mcp/
+coverage/
+src/security/blocklists/data/
+
+# Native binaries (compiled locally)
+native/speech/tandem-speech
+
+# macOS system files
+.DS_Store
+
+# Local MCP config
+.mcp.json
+
+# Cowork workspace (local only, not for the repo)
+.cowork/
+
+# Implementation plans (private, local only)
+docs/superpowers/
+docs/plans/windows-support-design.md
+docs/implementations/windows-support/
+
+# Local Claude Code settings and worktrees
+.claude/
