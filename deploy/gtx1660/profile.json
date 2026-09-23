@@ -1,0 +1,31 @@
+{
+  "id": "gtx1660",
+  "rendererHeapMb": 384,
+  "rendererProcessLimit": 3,
+  "processModel": "process-per-site",
+  "angle": "d3d11",
+  "gpu": {
+    "rasterization": true,
+    "zeroCopy": true,
+    "ignoreBlocklist": true,
+    "hwVideoDecode": true,
+    "softwareRasterizer": false
+  },
+  "cache": {
+    "diskBytes": 134217728,
+    "mediaBytes": 67108864,
+    "location": "%APPDATA%\\Tandem Browser\\Cache",
+    "avoid": "WSL ext4 and /mnt/c 9P"
+  },
+  "securityPreserved": [
+    "site-isolation",
+    "8-layer shield",
+    "Wingman approval gates",
+    "API bind remains 127.0.0.1 unless the operator already changed it"
+  ],
+  "notes": [
+    "Default upstream --max-old-space-size=4096 is actively harmful on this 16 GB host because WSL already holds 12 GB.",
+    "Do not disable site isolation to fake fewer processes.",
+    "Affinity pinning is optional and off by default; WSL already owns 6 of 8 host threads."
+  ]
+}

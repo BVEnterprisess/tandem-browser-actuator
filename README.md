@@ -1,5 +1,20 @@
 # Tandem Browser
 
+**This repository is the BVEnterprisess actuator fork** — Windows bare-metal
+deployment of Tandem as the OpenClaw browser actuator. On the gtx1660
+Windows 10 + WSL2 rig, launch Wingman with:
+
+```bash
+npm run launch:wingman
+```
+
+That starts the OpenClaw gateway in WSL, compiles on ext4, and hands off to
+Windows Electron with the GTX 1660 performance profile. Exact start sequence
+and knobs: [docs/gtx1660-wingman.md](docs/gtx1660-wingman.md).
+
+Upstream product docs below still describe Tandem itself. Prefer this fork
+over a Windows 11-only official binary for this machine.
+
 [![Verify](https://github.com/hydro13/tandem-browser/actions/workflows/verify.yml/badge.svg)](https://github.com/hydro13/tandem-browser/actions/workflows/verify.yml)
 [![CodeQL](https://github.com/hydro13/tandem-browser/actions/workflows/codeql.yml/badge.svg)](https://github.com/hydro13/tandem-browser/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -378,7 +393,7 @@ contributors, not yet a polished mass-user release.
 - Supported platform: Windows 11 x64
 - Secondary platform: Linux
 - Binaries: signed and notarized macOS Apple Silicon builds plus unsigned Windows x64 installer/portable builds on [GitHub Releases](https://github.com/hydro13/tandem-browser/releases), starting with Windows in v1.10.0
-- Current version: `1.11.0`
+- Current version: `1.12.0`
 - Package metadata: [package.json](package.json)
 
 ## Community

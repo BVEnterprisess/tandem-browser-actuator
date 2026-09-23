@@ -475,6 +475,35 @@ describe('Data Routes', () => {
       expect(res.body.error).toBe('nonce required');
     });
 
+    it('reports handshake readiness without leaking the full token', async () => {
+      vi.mocked(fs.existsSync).mockImplementation((filePath: any) => (
+        typeof filePath === 'string' && normalizePath(filePath).includes('.openclaw/openclaw.json')
+      ));
+      vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
+        if (typeof filePath === 'string' && normalizePath(filePath).includes('.openclaw/openclaw.json')) {
+          return JSON.stringify({ gateway: { auth: { token: 'nested-token' }, port: 18789 } }) as any;
+        }
+        throw new Error(`unexpected readFileSync: ${String(filePath)}`);
+      });
+
+      const previousFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true, status: 'live' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+      try {
+        const res = await request(app).get('/config/openclaw-status');
+        expect(res.status).toBe(200);
+        expect(res.body.hasToken).toBe(true);
+        expect(res.body.tokenPreview).toContain('…');
+        expect(res.body.tokenPreview).not.toContain('nested-token');
+        expect(res.body.gatewayUrl).toContain('18789');
+      } finally {
+        globalThis.fetch = previousFetch;
+      }
+    });
+
     it('returns signed connect params for OpenClaw gateway auth', async () => {
       vi.mocked(fs.existsSync).mockImplementation((filePath: any) => (
         typeof filePath === 'string' && normalizePath(filePath).includes('.openclaw/openclaw.json')
@@ -491,6 +520,7 @@ describe('Data Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.params.auth.token).toBe('nested-token');
+      expect(res.body.params.gatewayUrl).toBe('ws://127.0.0.1:18789');
       expect(res.body.params.scopes).toEqual(['operator.read', 'operator.write']);
       expect(typeof res.body.params.device.id).toBe('string');
       expect(res.body.params.device.id.length).toBeGreaterThan(10);

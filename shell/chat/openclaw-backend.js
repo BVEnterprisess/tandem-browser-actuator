@@ -110,7 +110,11 @@ class OpenClawBackend {
         return null;
       }
       const data = await res.json();
-      return data.params || null;
+      const params = data.params || null;
+      if (params && typeof params.gatewayUrl === 'string' && params.gatewayUrl.startsWith('ws://')) {
+        this._wsUrl = params.gatewayUrl;
+      }
+      return params;
     } catch (e) {
       console.warn('[OpenClawBackend] Connect param fetch failed:', e.message);
       return null;

@@ -1,0 +1,31 @@
+{
+  "id": "gtx1660",
+  "label": "gtx1660",
+  "machineWorker": "GTX-1660",
+  "os": "Microsoft Windows 10 Home 19045",
+  "cpu": "Intel Core i7-3770K (4C/8T, Ivy Bridge)",
+  "gpu": "NVIDIA GeForce GTX 1660 6GB",
+  "hostRamGb": 16,
+  "wsl": {
+    "distro": "Ubuntu",
+    "user": "jp",
+    "memoryGb": 12,
+    "processors": 6,
+    "localhostForwarding": true,
+    "openclawConfig": "/home/jp/.openclaw/openclaw.json",
+    "gatewayPort": 18789,
+    "gatewayHealth": "http://127.0.0.1:18789/health"
+  },
+  "windows": {
+    "user": "johnh",
+    "tandemUserData": "%APPDATA%\\Tandem Browser",
+    "deployRoot": "%LOCALAPPDATA%\\TandemBrowser-gtx1660",
+    "nodeHome": "C:\\Users\\johnh\\node-v22.14.0-win-x64"
+  },
+  "tandem": {
+    "apiPort": 8765,
+    "listenHost": "127.0.0.1",
+    "activeBackend": "openclaw",
+    "startPage": "wingman"
+  }
+}

@@ -18,6 +18,7 @@
 | Platform | Tier | Notes |
 |----------|------|-------|
 | macOS Apple Silicon (arm64) | Tier 1 — required | Primary platform. Signed and notarized. |
+| Windows 10 Home 19045 + WSL2 (this fork) | Tier 1 — required | Production path for the gtx1660 bare-metal OpenClaw actuator. Wingman handshake reads the live WSL OpenClaw config. |
 | Windows 11 x64 | Tier 1 — required | Supported with required CI, startup smoke coverage, and unsigned official installer/portable builds. |
 | Linux x64 | Tier 2 — best effort | Functional but not a release blocker. |
 | Windows 11 ARM64 | Tier 2 — best effort | Best-effort packaging only. |
