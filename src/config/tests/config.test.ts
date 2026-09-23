@@ -82,7 +82,7 @@ describe('ConfigManager', () => {
     it('loads with correct voice defaults', () => {
       const cm = new ConfigManager();
       const config = cm.getConfig();
-      expect(config.voice.inputLanguage).toBe('nl-BE');
+      expect(config.voice.inputLanguage).toBe('en-US');
       expect(config.voice.autoSendOnSilence).toBe(true);
       expect(config.voice.silenceTimeoutSeconds).toBe(2);
     });

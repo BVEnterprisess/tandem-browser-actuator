@@ -57,10 +57,10 @@ npm run launch:wingman
 From Windows PowerShell (NT path, not `/mnt/c/...`):
 
 ```powershell
-cd $env:LOCALAPPDATA\TandemBrowser-gtx1660
-# C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660
-.\deploy\gtx1660\launch-wingman.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TandemBrowser-gtx1660\deploy\gtx1660\launch-wingman.ps1"
 ```
+
+That path is `C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660`. Do not paste `/home/jp/...` into PowerShell. The script skips Windows compile when `dist\main.js` is already present (WSL builds that tree).
 
 `npm run launch:wingman` from WSL still copies through `/mnt/c/...`, but the
 PowerShell `-RepoRoot` handoff is converted to

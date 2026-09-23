@@ -10,7 +10,8 @@
 #>
 param(
   [string]$RepoRoot = $(if ($PSScriptRoot) { Split-Path (Split-Path $PSScriptRoot -Parent) -Parent } else { (Get-Location).Path }),
-  [switch]$SkipCompile
+  [switch]$SkipCompile,
+  [switch]$ForceCompile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,6 +62,11 @@ $ApplyConfig = Join-Path $PSScriptRoot 'apply-wingman-config.js'
 if (Test-Path -LiteralPath $ApplyConfig) {
   Write-Host '[gtx1660] Forcing activeBackend=openclaw in Tandem config.json'
   & (Join-Path $NodeHome 'node.exe') $ApplyConfig
+}
+
+if (-not $ForceCompile -and -not $SkipCompile -and (Test-Path -LiteralPath (Join-Path $RepoRoot 'dist\main.js'))) {
+  Write-Host '[gtx1660] dist/main.js present — skipping Windows compile (this tree is built on WSL)'
+  $SkipCompile = $true
 }
 
 if (-not $SkipCompile) {

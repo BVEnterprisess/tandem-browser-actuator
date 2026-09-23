@@ -57,12 +57,23 @@ function applyWingmanConfig(options = {}) {
       ...(existing.general && typeof existing.general === 'object' ? existing.general : {}),
       activeBackend: options.activeBackend || 'openclaw',
       startPage: options.startPage || 'wingman',
+      language: options.language || 'en-US',
+    },
+    voice: {
+      ...(existing.voice && typeof existing.voice === 'object' ? existing.voice : {}),
+      inputLanguage: options.inputLanguage || 'en-US',
     },
   };
 
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(configPath, `${JSON.stringify(next, null, 2)}\n`);
-  return { path: configPath, activeBackend: next.general.activeBackend, startPage: next.general.startPage };
+  return {
+    path: configPath,
+    activeBackend: next.general.activeBackend,
+    startPage: next.general.startPage,
+    language: next.general.language,
+    inputLanguage: next.voice.inputLanguage,
+  };
 }
 
 module.exports = { applyWingmanConfig, resolveTandemConfigPath, isWsl };
@@ -75,5 +86,5 @@ if (require.main === module) {
     activeBackend: rig.tandem?.activeBackend,
     startPage: rig.tandem?.startPage,
   });
-  console.log(`[gtx1660] Wingman config ${result.path} activeBackend=${result.activeBackend} startPage=${result.startPage}`);
+  console.log(`[gtx1660] Wingman config ${result.path} activeBackend=${result.activeBackend} startPage=${result.startPage} language=${result.language} voice=${result.inputLanguage}`);
 }

@@ -29,7 +29,9 @@ describe('applyWingmanConfig', () => {
       expect(result.activeBackend).toBe('openclaw');
       expect(result.startPage).toBe('wingman');
       expect(written.general.activeBackend).toBe('openclaw');
+      expect(written.general.language).toBe('en-US');
       expect(written.general.agentName).toBe('Wingman');
+      expect(written.voice.inputLanguage).toBe('en-US');
       expect(written.webhook.secret).toBe('keep-me');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

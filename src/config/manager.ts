@@ -149,7 +149,7 @@ const DEFAULT_CONFIG: TandemConfig = {
     googlePhotos: false,
   },
   voice: {
-    inputLanguage: 'nl-BE',
+    inputLanguage: 'en-US',
     autoSendOnSilence: true,
     silenceTimeoutSeconds: 2,
   },
