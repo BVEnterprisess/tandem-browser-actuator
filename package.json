@@ -1,7 +1,7 @@
 {
   "name": "tandem-browser",
   "version": "1.12.0",
-  "description": "Tandem Browser fork — Windows bare-metal OpenClaw actuator with a 257-tool MCP server, MCP/HTTP control surfaces, and Wingman",
+  "description": "Tandem Browser fork — Windows bare-metal OpenClaw actuator with a 258-tool MCP server, MCP/HTTP control surfaces, and Wingman",
   "main": "dist/main.js",
   "author": "Tandem Browser contributors",
   "license": "MIT",
@@ -29,6 +29,8 @@
     "start": "node scripts/start.js",
     "start:gtx1660": "node scripts/start.js --profile=gtx1660",
     "launch:wingman": "node deploy/gtx1660/launch.js",
+    "probe:api": "node deploy/gtx1660/windows-api.js",
+    "chrome:cdp": "node deploy/gtx1660/launch-chrome-cdp.js",
     "build:gtx1660": "tsc && npm run bundle:preload && electron-builder --win portable --x64",
     "compile": "tsc && npm run bundle:preload",
     "watch": "tsc -w",

@@ -33,6 +33,8 @@ $Rig = Get-Content -Raw -Path $RigPath | ConvertFrom-Json
 $NodeHome = $Rig.windows.nodeHome
 $env:Path = "$NodeHome;$env:Path"
 $env:TANDEM_PERF_PROFILE = 'gtx1660'
+$env:TANDEM_ACTIVE_BACKEND = 'openclaw'
+$env:TANDEM_START_PAGE = 'wingman'
 $env:TANDEM_WSL_DISTRO = $Rig.wsl.distro
 $env:TANDEM_WSL_USER = $Rig.wsl.user
 $env:TANDEM_OPENCLAW_CONFIG = ('\\wsl$\' + $Rig.wsl.distro + ($Rig.wsl.openclawConfig -replace '/', '\'))
@@ -53,6 +55,12 @@ if ($Wsl) {
 
 if (-not (Test-Path (Join-Path $NodeHome 'node.exe'))) {
   throw "Windows Node not found at $NodeHome"
+}
+
+$ApplyConfig = Join-Path $PSScriptRoot 'apply-wingman-config.js'
+if (Test-Path -LiteralPath $ApplyConfig) {
+  Write-Host '[gtx1660] Forcing activeBackend=openclaw in Tandem config.json'
+  & (Join-Path $NodeHome 'node.exe') $ApplyConfig
 }
 
 if (-not $SkipCompile) {

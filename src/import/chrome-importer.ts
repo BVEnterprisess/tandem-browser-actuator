@@ -6,6 +6,13 @@ import { createLogger } from '../utils/logger';
 import { resolvePathWithinRoot } from '../utils/security';
 import { selectPlatform } from '../platform';
 import type { ChromeImportAdapter } from '../platform/types';
+import { applyCdpCookies, fetchCdpCookies, type CookieSession } from './cdp-cookies';
+import {
+  chromeSessionName,
+  normalizeIdentityProfiles,
+  readChromeProfileDisplayName,
+  readLastUsedChromeProfile,
+} from './chrome-paths';
 
 const log = createLogger('ChromeImport');
 
@@ -45,6 +52,50 @@ export interface ChromeImportStatus {
   profilePath: string;
   cookiesImportSupported?: boolean;
   cookiesImportStatus?: string;
+}
+
+export interface ChromeProfileSummary {
+  name: string;
+  path: string;
+  hasBookmarks: boolean;
+  hasCookies: boolean;
+  sessionName: string;
+}
+
+export interface ChromeIdentitySession {
+  name: string;
+  partition: string;
+  created: boolean;
+}
+
+export interface ChromeIdentityImportOptions {
+  profiles?: string[];
+  cdpProfile?: string;
+  ensureSession: (sessionName: string) => ChromeIdentitySession;
+  sessionForName: (sessionName: string) => CookieSession;
+  fetchCookies?: typeof fetchCdpCookies;
+}
+
+export interface ChromeIdentityResult {
+  profile: string;
+  displayName: string;
+  sessionName: string;
+  partition: string;
+  created: boolean;
+  bookmarksFound: boolean;
+  cookiesFileFound: boolean;
+  cookiesImported: number;
+  cookiesSource: 'cdp' | 'none';
+  cookiesError?: string;
+}
+
+export interface ChromeIdentitiesImportResult {
+  ok: boolean;
+  identities: ChromeIdentityResult[];
+  cdpAvailable: boolean;
+  cdpPort?: number;
+  cdpProfile?: string | null;
+  hint?: string;
 }
 
 interface SqliteDatabase {
@@ -98,8 +149,8 @@ export class ChromeImporter {
   }
 
   /** List available Chrome profiles */
-  listProfiles(): { name: string; path: string; hasBookmarks: boolean }[] {
-    const results: { name: string; path: string; hasBookmarks: boolean }[] = [];
+  listProfiles(): ChromeProfileSummary[] {
+    const results: ChromeProfileSummary[] = [];
     if (!fs.existsSync(this.chromeBasePath)) return results;
 
     try {
@@ -109,16 +160,13 @@ export class ChromeImporter {
         // Chrome profiles are 'Default', 'Profile 1', 'Profile 2', etc.
         if (entry.name === 'Default' || entry.name.startsWith('Profile ')) {
           const profilePaths = this.resolveChromeProfileDataPaths(entry.name);
-          const hasBookmarks = fs.existsSync(profilePaths.bookmarksPath);
-
-          // Try to read profile name from Preferences
-          let displayName = entry.name;
-          try {
-            const prefs = JSON.parse(fs.readFileSync(profilePaths.preferencesPath, 'utf-8'));
-            if (prefs.profile?.name) displayName = `${prefs.profile.name} (${entry.name})`;
-          } catch { /* use folder name */ }
-
-          results.push({ name: displayName, path: entry.name, hasBookmarks });
+          results.push({
+            name: readChromeProfileDisplayName(profilePaths.preferencesPath, entry.name),
+            path: entry.name,
+            hasBookmarks: fs.existsSync(profilePaths.bookmarksPath),
+            hasCookies: fs.existsSync(profilePaths.cookiesPath),
+            sessionName: chromeSessionName(entry.name),
+          });
         }
       }
     } catch (e) {
@@ -432,39 +480,76 @@ export class ChromeImporter {
     }
   }
 
-  /** Try to import cookies via Chrome DevTools Protocol */
-  private async importCookiesViaCDP(_electronSession: Electron.Session): Promise<{ ok: boolean; count: number; error?: string }> {
-    // Try common debugging ports
-    const ports = [9222, 9229, 9221];
-    for (const port of ports) {
-      try {
-        const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) });
-        if (!resp.ok) continue;
+  /**
+   * Pull Chrome cookies over CDP into isolated Tandem sessions.
+   * Defaults to Default (Black Vault) + Profile 6 (Samwise). Does not write bookmarks.json.
+   * Response and logs carry counts only — never cookie values.
+   */
+  async importIdentities(options: ChromeIdentityImportOptions): Promise<ChromeIdentitiesImportResult> {
+    const profiles = normalizeIdentityProfiles(options.profiles);
+    const lastUsed = readLastUsedChromeProfile(this.chromeBasePath);
+    const requestedCdp = (options.cdpProfile?.trim() || lastUsed || (profiles.length === 1 ? profiles[0] : '')) || null;
+    const fetched = await (options.fetchCookies ?? fetchCdpCookies)({});
 
-        // Get all cookies via CDP
-        const wsUrl = (await resp.json() as { webSocketDebuggerUrl?: string }).webSocketDebuggerUrl;
-        if (!wsUrl) continue;
+    const identities: ChromeIdentityResult[] = [];
+    for (const profile of profiles) {
+      const profilePaths = this.resolveChromeProfileDataPaths(profile);
+      const sessionName = chromeSessionName(profile);
+      const sess = options.ensureSession(sessionName);
+      const identity: ChromeIdentityResult = {
+        profile,
+        displayName: readChromeProfileDisplayName(profilePaths.preferencesPath, profile),
+        sessionName: sess.name,
+        partition: sess.partition,
+        created: sess.created,
+        bookmarksFound: fs.existsSync(profilePaths.bookmarksPath),
+        cookiesFileFound: fs.existsSync(profilePaths.cookiesPath),
+        cookiesImported: 0,
+        cookiesSource: 'none',
+      };
 
-        // Use CDP HTTP endpoint instead of WebSocket for simplicity
-        const cookiesResp = await fetch(`http://127.0.0.1:${port}/json/protocol`);
-        if (!cookiesResp.ok) continue;
-
-        // Direct CDP command via fetch
-        const getAllCookies = await fetch(`http://127.0.0.1:${port}/json/list`);
-        const targets = await getAllCookies.json() as Array<{ id: string; webSocketDebuggerUrl: string }>;
-        if (!targets.length) continue;
-
-        // We need WebSocket for CDP commands — use a simpler approach:
-        // Send CDP command via the /json endpoint isn't possible for Network.getAllCookies
-        // Fall back to the JSON export approach
-        log.info(`🍪 Chrome DevTools found on port ${port} but WebSocket needed for cookie export`);
-        log.info('   Tip: Export cookies via Chrome console: copy(await cookieStore.getAll())');
-        return { ok: false, count: 0, error: 'CDP found but WebSocket cookie extraction not implemented yet' };
-      } catch {
-        continue;
+      if (fetched.ok && requestedCdp && profile === requestedCdp) {
+        const applied = await applyCdpCookies(options.sessionForName(sessionName), fetched.cookies);
+        identity.cookiesImported = applied.count;
+        identity.cookiesSource = 'cdp';
+        if (!applied.ok) {
+          identity.cookiesError = 'CDP returned no writable cookies';
+        }
+        log.info(`Imported ${applied.count} cookies via CDP into session ${sessionName} (port ${fetched.port ?? '?'})`);
+      } else if (!fetched.ok) {
+        identity.cookiesError = fetched.error;
+      } else {
+        identity.cookiesError = `CDP cookies belong to ${requestedCdp || 'the running Chrome profile'}; start Chrome with --remote-debugging-port=9222 --profile-directory="${profile}" and retry this profile.`;
       }
+
+      identities.push(identity);
     }
-    return { ok: false, count: 0, error: 'Chrome DevTools Protocol not available' };
+
+    const importedAny = identities.some((identity) => identity.cookiesImported > 0);
+    return {
+      ok: identities.length > 0,
+      identities,
+      cdpAvailable: fetched.ok,
+      cdpPort: fetched.port,
+      cdpProfile: requestedCdp,
+      hint: fetched.ok
+        ? (importedAny ? undefined : `Chrome CDP is up; cookies apply only to ${requestedCdp || 'the running profile'}.`)
+        : fetched.error,
+    };
+  }
+
+  /** Try to import cookies via Chrome DevTools Protocol */
+  private async importCookiesViaCDP(electronSession: Electron.Session): Promise<{ ok: boolean; count: number; error?: string }> {
+    const fetched = await fetchCdpCookies({});
+    if (!fetched.ok) {
+      return { ok: false, count: 0, error: fetched.error };
+    }
+
+    const applied = await applyCdpCookies(electronSession, fetched.cookies);
+    log.info(`Imported ${applied.count} cookies via CDP on port ${fetched.port ?? '?'}`);
+    return applied.ok
+      ? { ok: true, count: applied.count }
+      : { ok: false, count: 0, error: 'CDP returned no writable cookies' };
   }
 
   /** Convert Chrome timestamp (microseconds since 1601-01-01) to ISO string */

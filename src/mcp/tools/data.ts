@@ -56,6 +56,23 @@ export function registerDataTools(server: McpServer): void {
   );
 
   server.tool(
+    'tandem_chrome_import_identities',
+    'Import Chrome identities (Default + Profile 6 by default) into isolated Tandem sessions via CDP cookies. Returns counts only, never cookie values.',
+    {
+      profiles: z.array(z.string()).optional().describe('Chrome profile directories. Defaults to Default and Profile 6.'),
+      cdpProfile: z.string().optional().describe('Chrome profile currently exposed on the CDP debug port.'),
+    },
+    async ({ profiles, cdpProfile }) => {
+      const body: Record<string, unknown> = {};
+      if (profiles) body.profiles = profiles;
+      if (cdpProfile) body.cdpProfile = cdpProfile;
+      const data = await apiCall('POST', '/import/chrome/identities', body);
+      await logActivity('chrome_import_identities', (profiles && profiles.join(',')) || 'default-identities');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
     'tandem_chrome_sync_start',
     'Start continuous Chrome sync. Optionally specify a Chrome profile.',
     {

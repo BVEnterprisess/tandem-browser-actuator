@@ -44,6 +44,18 @@ describe('ConfigManager', () => {
       expect(config.general.wingmanPanelDefaultOpen).toBe(false);
       expect(config.general.showBookmarksBar).toBe(true);
       expect(config.general.activeBackend).toBe('tandem');
+    });
+
+    it('honors TANDEM_ACTIVE_BACKEND from the gtx1660 launch environment', () => {
+      const previous = process.env.TANDEM_ACTIVE_BACKEND;
+      process.env.TANDEM_ACTIVE_BACKEND = 'openclaw';
+      try {
+        const cm = new ConfigManager();
+        expect(cm.getConfig().general.activeBackend).toBe('openclaw');
+      } finally {
+        if (previous === undefined) delete process.env.TANDEM_ACTIVE_BACKEND;
+        else process.env.TANDEM_ACTIVE_BACKEND = previous;
+      }
       expect(config.general.agentName).toBe('Wingman');
       expect(config.general.agentDisplayName).toBe('AI Wingman');
       expect(config.general.apiPort).toBe(8765);

@@ -13,6 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { toWindowsNtPath } = require('./windows-path');
+const { applyWingmanConfig } = require('./apply-wingman-config');
 
 const root = path.join(__dirname, '../..');
 const rig = JSON.parse(fs.readFileSync(path.join(__dirname, 'rig.json'), 'utf-8'));
@@ -123,15 +124,27 @@ function launchLocalElectron() {
     env: {
       ...process.env,
       TANDEM_PERF_PROFILE: 'gtx1660',
+      TANDEM_ACTIVE_BACKEND: 'openclaw',
+      TANDEM_START_PAGE: 'wingman',
       TANDEM_OPENCLAW_CONFIG: process.env.TANDEM_OPENCLAW_CONFIG || path.join(os.homedir(), '.openclaw', 'openclaw.json'),
     },
   });
   child.on('exit', (code) => process.exit(code || 0));
 }
 
+function forceOpenClawBackend() {
+  const result = applyWingmanConfig({
+    rig,
+    activeBackend: rig.tandem.activeBackend || 'openclaw',
+    startPage: rig.tandem.startPage || 'wingman',
+  });
+  log(`Forced Wingman backend ${result.activeBackend} in ${result.path}`);
+}
+
 function main() {
   log(`${rig.label} Wingman launch`);
   ensureOpenClaw();
+  forceOpenClawBackend();
   compile();
 
   if (isWsl && fs.existsSync(powershell)) {

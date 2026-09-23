@@ -83,7 +83,7 @@ Practical notes:
 
 ### Option 1: MCP Server (local or remote)
 
-The MCP server exposes 257 tools with full API parity.
+The MCP server exposes 258 tools with full API parity.
 
 **Same machine (stdio):** Add to your MCP client configuration
 (e.g. `~/.claude/settings.json` for Claude Code):

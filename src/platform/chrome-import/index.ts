@@ -4,6 +4,7 @@ import os from 'os';
 import { NotImplementedError, type PlatformId } from '../errors';
 import type { ChromeImportAdapter } from '../types';
 import { assertSinglePathSegment, resolvePathWithinRoot } from '../../utils/security';
+import { firstExistingPath } from '../../import/chrome-paths';
 
 function createNodeChromeImportAdapter(resolveBasePath: () => string, cookieSupport: ChromeImportAdapter['getCookieImportSupport']): ChromeImportAdapter {
   const adapter: ChromeImportAdapter = {
@@ -20,9 +21,15 @@ function createNodeChromeImportAdapter(resolveBasePath: () => string, cookieSupp
       const profilePath = adapter.resolveProfilePath(profileDir);
       return {
         profilePath,
-        bookmarksPath: resolvePathWithinRoot(profilePath, 'Bookmarks'),
+        bookmarksPath: firstExistingPath([
+          resolvePathWithinRoot(profilePath, 'Bookmarks'),
+          resolvePathWithinRoot(profilePath, 'AccountBookmarks'),
+        ]),
         historyPath: resolvePathWithinRoot(profilePath, 'History'),
-        cookiesPath: resolvePathWithinRoot(profilePath, 'Cookies'),
+        cookiesPath: firstExistingPath([
+          resolvePathWithinRoot(profilePath, 'Cookies'),
+          resolvePathWithinRoot(profilePath, 'Network', 'Cookies'),
+        ]),
         preferencesPath: resolvePathWithinRoot(profilePath, 'Preferences'),
         extensionsPath: resolvePathWithinRoot(profilePath, 'Extensions'),
       };
@@ -63,8 +70,8 @@ export function createWindowsChromeImportAdapter(chromeBasePath?: string): Chrom
     () => chromeBasePath ?? windowsChromeBasePath(),
     () => ({
       encryptedStore: false,
-      status: 'unsupported',
-      message: 'Windows Chrome cookie import is unsupported in Phase 8 because encrypted cookies require DPAPI support. Use Chrome DevTools Protocol or pre-exported JSON instead.',
+      status: 'partial',
+      message: 'Windows Chrome cookies are DPAPI-encrypted on disk. Import uses Chrome DevTools Protocol (Network.getAllCookies) or pre-exported JSON. DPAPI decryption is not implemented.',
     }),
   );
 }

@@ -664,6 +664,24 @@ describe('Data Routes', () => {
     });
   });
 
+  describe('POST /import/chrome/identities', () => {
+    it('imports isolated Chrome identities through sessionManager', async () => {
+      const fakeResult = { ok: true, identities: [{ profile: 'Profile 6', cookiesImported: 2 }], cdpAvailable: true };
+      vi.mocked(ctx.chromeImporter.importIdentities).mockResolvedValue(fakeResult as any);
+
+      const res = await request(app)
+        .post('/import/chrome/identities')
+        .send({ profiles: ['Default', 'Profile 6'], cdpProfile: 'Profile 6' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(fakeResult);
+      expect(ctx.chromeImporter.importIdentities).toHaveBeenCalledWith(expect.objectContaining({
+        profiles: ['Default', 'Profile 6'],
+        cdpProfile: 'Profile 6',
+      }));
+    });
+  });
+
   describe('GET /import/chrome/profiles', () => {
     it('returns available chrome profiles', async () => {
       const fakeProfiles = ['Default', 'Profile 1'];

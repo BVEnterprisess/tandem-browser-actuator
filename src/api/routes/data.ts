@@ -366,6 +366,25 @@ export function registerDataRoutes(router: Router, ctx: RouteContext): void {
     }
   });
 
+  router.post('/import/chrome/identities', async (req: Request, res: Response) => {
+    try {
+      const profiles = Array.isArray(req.body?.profiles) ? req.body.profiles : undefined;
+      const cdpProfile = typeof req.body?.cdpProfile === 'string' ? req.body.cdpProfile : undefined;
+      const result = await ctx.chromeImporter.importIdentities({
+        profiles,
+        cdpProfile,
+        ensureSession: (sessionName: string) => {
+          const { session: sess, created } = ctx.sessionManager.getOrCreate(sessionName);
+          return { name: sess.name, partition: sess.partition, created };
+        },
+        sessionForName: (sessionName: string) => ctx.sessionManager.electronSession(sessionName),
+      });
+      res.json(result);
+    } catch (e) {
+      handleRouteError(res, e);
+    }
+  });
+
   router.get('/import/chrome/profiles', (_req: Request, res: Response) => {
     try {
       const profiles = ctx.chromeImporter.listProfiles();

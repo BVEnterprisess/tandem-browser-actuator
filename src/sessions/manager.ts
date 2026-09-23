@@ -57,6 +57,20 @@ export class SessionManager {
     return this.sessions.get(name) || null;
   }
 
+  /** Return an existing session or create an isolated persist:session-{name} partition. */
+  getOrCreate(name: string): { session: Session; created: boolean } {
+    const existing = this.get(name);
+    if (existing) {
+      return { session: existing, created: false };
+    }
+    return { session: this.create(name), created: true };
+  }
+
+  /** Resolve a named session to its Electron cookie jar. */
+  electronSession(name: string): Electron.Session {
+    return session.fromPartition(this.resolvePartition(name));
+  }
+
   /** Get the active session name */
   getActive(): string {
     return this.activeSession;

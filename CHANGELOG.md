@@ -4,6 +4,16 @@ All notable changes to Tandem Browser will be documented in this file.
 
 ## Unreleased
 
+- **Chrome identities** — `POST /import/chrome/identities` (Default + Profile 6)
+  creates isolated `persist:session-chrome-*` partitions and pulls cookies
+  through CDP `Network.getAllCookies`. Modern Chrome paths
+  (`AccountBookmarks`, `Network/Cookies`) are resolved. Responses and logs
+  carry counts only. DPAPI decryption is still not implemented.
+- **Wingman backend forced on gtx1660 launch** — `TANDEM_ACTIVE_BACKEND=openclaw`
+  plus a merge-patch of `%APPDATA%\Tandem Browser\config.json`.
+- **WSL → :8765 probe** — `npm run probe:api` tries localhost, the Windows
+  nameserver from `/etc/resolv.conf`, and `host.docker.internal`.
+- **Chrome CDP helper** — `npm run chrome:cdp -- --profile="Profile 6"`.
 - **gtx1660 launch handoff** — `deploy/gtx1660/launch.js` now converts the
   WSL sync root (`/mnt/c/...`) to an NT path before `powershell.exe
   -RepoRoot`, so `Push-Location` no longer treats it as relative `mnt\c\...`.

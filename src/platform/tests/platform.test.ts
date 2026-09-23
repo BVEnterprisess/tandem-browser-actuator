@@ -192,7 +192,13 @@ describe('selectPlatform', () => {
       const importedHistory = JSON.parse(fs.readFileSync(path.join(tandemDataDir, 'history.json'), 'utf-8'));
 
       expect(windowsAdapter.getDefaultChromeBasePath()).toBe(path.join(localAppData, 'Google', 'Chrome', 'User Data'));
-      expect(profiles).toEqual([{ name: 'Robin (Default)', path: 'Default', hasBookmarks: true }]);
+      expect(profiles).toEqual([{
+        name: 'Robin (Default)',
+        path: 'Default',
+        hasBookmarks: true,
+        hasCookies: false,
+        sessionName: 'chrome-default',
+      }]);
       expect(bookmarkResult).toMatchObject({ ok: true, count: 1 });
       expect(historyResult).toMatchObject({ ok: true, count: 1 });
       expect(importedHistory.entries[0]).toMatchObject({
@@ -210,13 +216,50 @@ describe('selectPlatform', () => {
     }
   });
 
-  it('documents Windows Chrome encrypted cookie import as unsupported', () => {
+  it('documents Windows Chrome cookie import as CDP-partial', () => {
     const adapter = createWindowsChromeImportAdapter('C:\\Users\\Robin\\AppData\\Local\\Google\\Chrome\\User Data');
 
     expect(adapter.getCookieImportSupport()).toMatchObject({
       encryptedStore: false,
-      status: 'unsupported',
+      status: 'partial',
     });
+    expect(adapter.getCookieImportSupport().message).toMatch(/DevTools Protocol/);
+  });
+
+  it('resolves modern Chrome AccountBookmarks and Network/Cookies paths on Windows', () => {
+    const originalLocalAppData = process.env.LOCALAPPDATA;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-win-chrome-modern-'));
+    const localAppData = path.join(root, 'LocalAppData');
+    const chromeBase = path.join(localAppData, 'Google', 'Chrome', 'User Data');
+    const profilePath = path.join(chromeBase, 'Default');
+    fs.mkdirSync(path.join(profilePath, 'Network'), { recursive: true });
+    fs.writeFileSync(path.join(profilePath, 'AccountBookmarks'), '{"roots":{}}');
+    fs.writeFileSync(path.join(profilePath, 'Network', 'Cookies'), 'sqlite');
+    fs.writeFileSync(path.join(profilePath, 'Preferences'), JSON.stringify({ profile: { name: 'Black Vault Enterprises' } }));
+
+    try {
+      process.env.LOCALAPPDATA = localAppData;
+      const adapter = createWindowsChromeImportAdapter();
+      const paths = adapter.resolveProfileDataPaths('Default');
+      const importer = new ChromeImporter(undefined, adapter, path.join(root, 'tandem'));
+
+      expect(paths.bookmarksPath).toBe(path.join(profilePath, 'AccountBookmarks'));
+      expect(paths.cookiesPath).toBe(path.join(profilePath, 'Network', 'Cookies'));
+      expect(importer.listProfiles()).toEqual([{
+        name: 'Black Vault Enterprises (Default)',
+        path: 'Default',
+        hasBookmarks: true,
+        hasCookies: true,
+        sessionName: 'chrome-default',
+      }]);
+    } finally {
+      if (originalLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA;
+      } else {
+        process.env.LOCALAPPDATA = originalLocalAppData;
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('keeps the Darwin voice adapter on Apple Speech when the native binary exists', () => {
