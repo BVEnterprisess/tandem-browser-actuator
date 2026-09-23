@@ -7,6 +7,7 @@ import {
   firstExistingPath,
   normalizeIdentityProfiles,
   readChromeProfileDisplayName,
+  readChromeProfileInfoCache,
   readLastUsedChromeProfile,
   DEFAULT_IDENTITY_PROFILES,
 } from '../chrome-paths';
@@ -37,9 +38,18 @@ describe('chrome-paths', () => {
   });
 
   it('reads Local State last_used and Preferences display names', () => {
+    expect(readChromeProfileInfoCache('/chrome', () => JSON.stringify({
+      profile: { info_cache: { 'Profile 6': { name: 'Samwise' } } },
+    }), path.posix.join)['Profile 6']?.name).toBe('Samwise');
     expect(readLastUsedChromeProfile('/chrome', () => JSON.stringify({ profile: { last_used: 'Profile 6' } }), path.posix.join)).toBe('Profile 6');
     expect(readLastUsedChromeProfile('/chrome', () => '{', path.posix.join)).toBeNull();
     expect(readChromeProfileDisplayName('/prefs', 'Default', () => JSON.stringify({ profile: { name: 'Black Vault Enterprises' } }))).toBe('Black Vault Enterprises (Default)');
     expect(readChromeProfileDisplayName('/prefs', 'Profile 6', () => '{')).toBe('Profile 6');
+    expect(readChromeProfileDisplayName(
+      '/prefs',
+      'Default',
+      () => JSON.stringify({ profile: { name: 'Your Chrome' } }),
+      { Default: { name: 'Black Vault Enterprises', gaia_name: 'Black Vault Enterprises' } },
+    )).toBe('Black Vault Enterprises (Default)');
   });
 });

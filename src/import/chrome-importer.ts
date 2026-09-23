@@ -11,6 +11,7 @@ import {
   chromeSessionName,
   normalizeIdentityProfiles,
   readChromeProfileDisplayName,
+  readChromeProfileInfoCache,
   readLastUsedChromeProfile,
 } from './chrome-paths';
 
@@ -155,13 +156,14 @@ export class ChromeImporter {
 
     try {
       const entries = fs.readdirSync(this.chromeBasePath, { withFileTypes: true });
+      const infoCache = readChromeProfileInfoCache(this.chromeBasePath);
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         // Chrome profiles are 'Default', 'Profile 1', 'Profile 2', etc.
         if (entry.name === 'Default' || entry.name.startsWith('Profile ')) {
           const profilePaths = this.resolveChromeProfileDataPaths(entry.name);
           results.push({
-            name: readChromeProfileDisplayName(profilePaths.preferencesPath, entry.name),
+            name: readChromeProfileDisplayName(profilePaths.preferencesPath, entry.name, undefined, infoCache),
             path: entry.name,
             hasBookmarks: fs.existsSync(profilePaths.bookmarksPath),
             hasCookies: fs.existsSync(profilePaths.cookiesPath),
@@ -488,6 +490,7 @@ export class ChromeImporter {
   async importIdentities(options: ChromeIdentityImportOptions): Promise<ChromeIdentitiesImportResult> {
     const profiles = normalizeIdentityProfiles(options.profiles);
     const lastUsed = readLastUsedChromeProfile(this.chromeBasePath);
+    const infoCache = readChromeProfileInfoCache(this.chromeBasePath);
     const requestedCdp = (options.cdpProfile?.trim() || lastUsed || (profiles.length === 1 ? profiles[0] : '')) || null;
     const fetched = await (options.fetchCookies ?? fetchCdpCookies)({});
 
@@ -498,7 +501,7 @@ export class ChromeImporter {
       const sess = options.ensureSession(sessionName);
       const identity: ChromeIdentityResult = {
         profile,
-        displayName: readChromeProfileDisplayName(profilePaths.preferencesPath, profile),
+        displayName: readChromeProfileDisplayName(profilePaths.preferencesPath, profile, undefined, infoCache),
         sessionName: sess.name,
         partition: sess.partition,
         created: sess.created,

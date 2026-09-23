@@ -61,17 +61,58 @@ export function readLastUsedChromeProfile(
   }
 }
 
+export interface ChromeProfileNameCache {
+  name?: unknown;
+  shortcut_name?: unknown;
+  gaia_name?: unknown;
+  gaia_given_name?: unknown;
+}
+
+function usableProfileLabel(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'your chrome') return null;
+  return trimmed;
+}
+
+export function readChromeProfileInfoCache(
+  chromeBasePath: string,
+  readFile: (filePath: string) => string = (filePath) => fs.readFileSync(filePath, 'utf-8'),
+  join: (...parts: string[]) => string = path.join,
+): Record<string, ChromeProfileNameCache> {
+  try {
+    const raw = JSON.parse(readFile(join(chromeBasePath, 'Local State'))) as {
+      profile?: { info_cache?: Record<string, ChromeProfileNameCache> };
+    };
+    return raw.profile?.info_cache && typeof raw.profile.info_cache === 'object'
+      ? raw.profile.info_cache
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function labelFromChromeProfileCache(profileDir: string, cache: Record<string, ChromeProfileNameCache> | undefined): string | null {
+  const info = cache?.[profileDir];
+  if (!info) return null;
+  return usableProfileLabel(info.name)
+    || usableProfileLabel(info.shortcut_name)
+    || usableProfileLabel(info.gaia_name)
+    || usableProfileLabel(info.gaia_given_name);
+}
+
 export function readChromeProfileDisplayName(
   preferencesPath: string,
   profileDir: string,
   readFile: (filePath: string) => string = (filePath) => fs.readFileSync(filePath, 'utf-8'),
+  cache?: Record<string, ChromeProfileNameCache>,
 ): string {
+  const cached = labelFromChromeProfileCache(profileDir, cache);
+  if (cached) return `${cached} (${profileDir})`;
   try {
     const prefs = JSON.parse(readFile(preferencesPath)) as { profile?: { name?: unknown } };
-    const name = prefs.profile?.name;
-    if (typeof name === 'string' && name.trim()) {
-      return `${name.trim()} (${profileDir})`;
-    }
+    const name = usableProfileLabel(prefs.profile?.name);
+    if (name) return `${name} (${profileDir})`;
   } catch {
     // use folder name
   }
