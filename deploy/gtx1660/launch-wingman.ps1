@@ -14,6 +14,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Convert-WslMountPath([string]$Candidate) {
+  if ([string]::IsNullOrWhiteSpace($Candidate)) { return $Candidate }
+  $normalized = $Candidate.Trim().Replace('\', '/')
+  if ($normalized -match '^/mnt/([a-zA-Z])/(.*)$') {
+    return ('{0}:\{1}' -f $Matches[1].ToUpper(), ($Matches[2] -replace '/', '\'))
+  }
+  if ($normalized -match '^mnt/([a-zA-Z])/(.*)$') {
+    return ('{0}:\{1}' -f $Matches[1].ToUpper(), ($Matches[2] -replace '/', '\'))
+  }
+  return $Candidate
+}
+
+$RepoRoot = Convert-WslMountPath $RepoRoot
 $RigPath = Join-Path $PSScriptRoot 'rig.json'
 $Rig = Get-Content -Raw -Path $RigPath | ConvertFrom-Json
 $NodeHome = $Rig.windows.nodeHome
@@ -26,6 +40,10 @@ $env:TANDEM_API_PORT = [string]$Rig.tandem.apiPort
 
 Write-Host "[gtx1660] Repo: $RepoRoot"
 Write-Host "[gtx1660] OpenClaw config: $env:TANDEM_OPENCLAW_CONFIG"
+
+if (-not (Test-Path -LiteralPath $RepoRoot)) {
+  throw "RepoRoot does not exist as a Windows path: $RepoRoot"
+}
 
 $Wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
 if ($Wsl) {

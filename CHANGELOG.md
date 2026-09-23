@@ -2,6 +2,12 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## Unreleased
+
+- **gtx1660 launch handoff** — `deploy/gtx1660/launch.js` now converts the
+  WSL sync root (`/mnt/c/...`) to an NT path before `powershell.exe
+  -RepoRoot`, so `Push-Location` no longer treats it as relative `mnt\c\...`.
+
 ## 1.12.0 — gtx1660 Wingman production path
 
 ### Added
@@ -21,8 +27,6 @@ All notable changes to Tandem Browser will be documented in this file.
 - **One-command launch** — `npm run launch:wingman`,
   `deploy/gtx1660/launch-wingman.sh`, and `deploy/gtx1660/launch-wingman.ps1`.
   Docs: `docs/gtx1660-wingman.md`.
-
-## Unreleased
 
 ### Security
 

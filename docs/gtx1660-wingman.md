@@ -54,12 +54,17 @@ npm install          # first time only
 npm run launch:wingman
 ```
 
-From Windows PowerShell:
+From Windows PowerShell (NT path, not `/mnt/c/...`):
 
 ```powershell
 cd $env:LOCALAPPDATA\TandemBrowser-gtx1660
+# C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660
 .\deploy\gtx1660\launch-wingman.ps1
 ```
+
+`npm run launch:wingman` from WSL still copies through `/mnt/c/...`, but the
+PowerShell `-RepoRoot` handoff is converted to
+`C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660`.
 
 `npm run start:gtx1660` is the same profile without the WSL gateway + NTFS
 sync orchestration. Use it only when the gateway is already up and you are

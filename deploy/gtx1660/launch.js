@@ -12,6 +12,7 @@ const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { toWindowsNtPath } = require('./windows-path');
 
 const root = path.join(__dirname, '../..');
 const rig = JSON.parse(fs.readFileSync(path.join(__dirname, 'rig.json'), 'utf-8'));
@@ -99,12 +100,14 @@ function launchWindowsElectron(dest) {
   }
 
   const ps1 = path.join(root, 'deploy/gtx1660/launch-wingman.ps1');
-  log('Handing off to Windows Electron (GTX 1660 / ANGLE D3D11)...');
+  const windowsRepoRoot = toWindowsNtPath(dest);
+  const windowsScript = toWindowsNtPath(ps1);
+  log(`Handing off to Windows Electron (GTX 1660 / ANGLE D3D11) at ${windowsRepoRoot}`);
   const child = spawn(powershell, [
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
-    '-File', ps1,
-    '-RepoRoot', dest,
+    '-File', windowsScript,
+    '-RepoRoot', windowsRepoRoot,
     '-SkipCompile',
   ], {
     stdio: 'inherit',
