@@ -3,8 +3,10 @@ import os from 'os';
 import path from 'path';
 
 import {
+  canSafelyWatchOpenClawConfig,
   extractOpenClawGatewayPort,
   extractOpenClawGatewayToken,
+  isWslUncPath,
   listOpenClawConfigCandidates,
   resolveOpenClawConfigPath,
 } from '../config-paths';
@@ -73,6 +75,22 @@ describe('resolveOpenClawConfigPath', () => {
     });
 
     expect(candidates.some((item) => item.source === 'wsl-unc' && item.path.includes('Ubuntu') && item.path.includes('jp'))).toBe(true);
+  });
+});
+
+describe('WSL UNC watch safety', () => {
+  it('recognizes wsl$ and wsl.localhost UNC files', () => {
+    expect(isWslUncPath('\\\\wsl$\\Ubuntu\\home\\jp\\.openclaw\\openclaw.json')).toBe(true);
+    expect(isWslUncPath('\\\\wsl.localhost\\Ubuntu\\home\\jp\\.openclaw\\openclaw.json')).toBe(true);
+    expect(isWslUncPath('C:\\Users\\johnh\\.openclaw\\openclaw.json')).toBe(false);
+    expect(isWslUncPath('/home/jp/.openclaw/openclaw.json')).toBe(false);
+  });
+
+  it('refuses native fs.watch on WSL UNC paths so Windows does not EISDIR', () => {
+    expect(canSafelyWatchOpenClawConfig('\\\\wsl$\\Ubuntu\\home\\jp\\.openclaw\\openclaw.json', 'win32')).toBe(false);
+    expect(canSafelyWatchOpenClawConfig('\\\\wsl.localhost\\Ubuntu\\home\\jp\\.openclaw\\openclaw.json', 'win32')).toBe(false);
+    expect(canSafelyWatchOpenClawConfig('C:\\Users\\johnh\\.openclaw\\openclaw.json', 'win32')).toBe(true);
+    expect(canSafelyWatchOpenClawConfig('/home/jp/.openclaw/openclaw.json', 'linux')).toBe(true);
   });
 });
 

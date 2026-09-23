@@ -66,6 +66,9 @@ cd $env:LOCALAPPDATA\TandemBrowser-gtx1660
 PowerShell `-RepoRoot` handoff is converted to
 `C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660`.
 
+The OpenClaw config integrity monitor polls the live WSL UNC file instead of
+`fs.watch` (`EISDIR` on Win10). Token resolution still prefers that WSL file.
+
 `npm run start:gtx1660` is the same profile without the WSL gateway + NTFS
 sync orchestration. Use it only when the gateway is already up and you are
 already on the Windows tree.
