@@ -16,20 +16,13 @@ process.on('unhandledRejection', (reason) => {
 import { nativeTheme, webContents, type WebContents } from 'electron';
 import fs from 'fs';
 import { app, BrowserWindow, session, ipcMain } from 'electron';
-
-// Increase V8 heap limit for renderer processes to handle memory-heavy SPAs.
-// Default Electron renderer heap is ~1.5GB which causes OOM on sites like zhipin.com.
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
-app.commandLine.appendSwitch('enable-precise-memory-info');
-// Disable Chromium features that break Electron:
-// - WebContentsForceDark: forces dark mode on sites that don't support it (unreadable pages)
-// - ThirdPartyStoragePartitioning: partitions cookies by top-level site, breaking Google
-//   cross-site auth (Electron doesn't support Related Website Sets)
-// - TrackingProtection3pcd: blocks third-party cookies in cross-site contexts,
-//   preventing Google auth cookies during youtube.com → accounts.google.com redirects
-app.commandLine.appendSwitch('disable-features',
-  'WebContentsForceDark,ThirdPartyStoragePartitioning,TrackingProtection3pcd');
+import { applyChromiumLaunchProfile } from './perf/apply';
 import path from 'path';
+
+// Chromium / V8 flags must be applied before app ready. The default profile
+// keeps the upstream 4 GB renderer heap. TANDEM_PERF_PROFILE=gtx1660 replaces
+// that with the Win10 + GTX 1660 + 4c/8t limits (see src/perf/profile.ts).
+applyChromiumLaunchProfile();
 import { TandemAPI } from './api/server';
 import { StealthManager } from './stealth/manager';
 import { buildAppMenu } from './menu/app-menu';

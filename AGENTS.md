@@ -169,7 +169,8 @@ tandem-browser/
 - macOS Apple Silicon is the protected baseline. Any shared-code change must
   preserve existing macOS behavior and call out the macOS safety check in the
   PR description.
-- Windows 11 x64 is the active target platform. Keep Windows work phased,
+- Windows 10/11 x64 is the active target platform for this actuator fork
+  (gtx1660 / Win10 19045 is the production path). Keep Windows work phased,
   independently revertable, and isolated behind platform adapters where code
   changes are needed.
 - Do not add new `process.platform` branches in shared application code.

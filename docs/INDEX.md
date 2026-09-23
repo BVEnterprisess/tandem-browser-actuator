@@ -8,6 +8,7 @@
 Read these files in this order:
 
 1. **[README.md](../README.md)** — Product overview, quick start, MCP/HTTP setup
+1b. **[gtx1660-wingman.md](gtx1660-wingman.md)** — This fork's Windows 10 + WSL2 Wingman launch path and GTX 1660 performance profile
 2. **[PROJECT.md](../PROJECT.md)** — Architecture, philosophy, security model
 3. **[AGENTS.md](../AGENTS.md)** — Rules for AI developers working on this codebase
 4. **[CONTRIBUTING.md](../CONTRIBUTING.md)** — How to contribute

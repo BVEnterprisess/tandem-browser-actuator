@@ -2,6 +2,26 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## 1.12.0 — gtx1660 Wingman production path
+
+### Added
+
+- **gtx1660 performance profile** (`src/perf/profile.ts`, `TANDEM_PERF_PROFILE=gtx1660`) —
+  ANGLE D3D11 + NVDEC, `process-per-site`, 3 renderer processes, 384 MB V8 heap,
+  NTFS AppData cache. Does not disable site isolation or the 8-layer shield.
+- **WSL2-aware OpenClaw config resolver** (`src/openclaw/config-paths.ts`) —
+  Wingman signs the designed webchat handshake from the live Ubuntu
+  `openclaw.json` (`\\wsl$\Ubuntu\home\jp\.openclaw\openclaw.json`) instead of
+  the stale 112-byte Windows stub token.
+- **OpenClaw `/health` detect** — current gateways no longer expose
+  `/v1/status` hooks.token; detect + webhook sync use `/health` plus the
+  resolved gateway token.
+- **`GET /config/openclaw-status`** — handshake readiness without leaking the
+  full token. Connect params now include `gatewayUrl`.
+- **One-command launch** — `npm run launch:wingman`,
+  `deploy/gtx1660/launch-wingman.sh`, and `deploy/gtx1660/launch-wingman.ps1`.
+  Docs: `docs/gtx1660-wingman.md`.
+
 ## Unreleased
 
 ### Security

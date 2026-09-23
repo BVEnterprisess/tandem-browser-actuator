@@ -61,8 +61,8 @@ const CAPABILITY_PROFILES: Record<PlatformId, PlatformSupportProfile> = {
   win32: {
     platform: 'win32',
     tier: 'tier1-required',
-    label: 'Windows 11 x64',
-    notes: 'Supported with required CI, startup smoke coverage, and unsigned official installer/portable builds.',
+    label: 'Windows 10/11 x64',
+    notes: 'This actuator fork treats Windows 10 Home 19045 + WSL2 as a first-class production path (gtx1660 profile). Official upstream binaries remain Windows 11-oriented.',
     capabilities: {
       appStartup: { status: 'supported', notes: 'Windows startup is covered by required verify and smoke checks.' },
       signedInstaller: unsupportedCapability('Windows installer and portable builds are official but unsigned; code signing is planned.'),

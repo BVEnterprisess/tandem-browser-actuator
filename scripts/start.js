@@ -13,6 +13,15 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const apiPort = String(readConfiguredApiPort());
 const skipCompile = process.argv.includes('--skip-compile');
+const perfProfile = readPerfProfile();
+
+function readPerfProfile() {
+  const fromArg = process.argv.find((arg) => arg.startsWith('--profile=') || arg.startsWith('--tandem-profile='));
+  if (fromArg) {
+    return fromArg.split('=').slice(1).join('=').trim();
+  }
+  return String(process.env.TANDEM_PERF_PROFILE || '').trim();
+}
 
 function tandemDataDir() {
   if (process.platform === 'win32') {
@@ -291,8 +300,18 @@ function startElectron() {
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
   delete cleanEnv.ATOM_SHELL_INTERNAL_RUN_AS_NODE;
 
+  if (perfProfile) {
+    cleanEnv.TANDEM_PERF_PROFILE = perfProfile;
+    console.log(`[start] Performance profile: ${perfProfile}`);
+  }
+
+  const electronArgs = ['.'];
+  if (perfProfile) {
+    electronArgs.push(`--tandem-profile=${perfProfile}`);
+  }
+
   console.log('[start] Starting Tandem Browser...');
-  const child = spawn(electronExecutablePath(), ['.'], {
+  const child = spawn(electronExecutablePath(), electronArgs, {
     stdio: 'inherit',
     cwd: root,
     env: cleanEnv,

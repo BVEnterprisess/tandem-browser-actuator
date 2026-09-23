@@ -1,13 +1,14 @@
 import type { Router, Request, Response } from 'express';
 import { rateLimit as expressRateLimit } from 'express-rate-limit';
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 import type { RouteContext } from '../context';
 import { tandemDir } from '../../utils/paths';
 import { handleRouteError } from '../../utils/errors';
 import { createLogger } from '../../utils/logger';
-import { buildOpenClawConnectParams, readOpenClawGatewayToken } from '../../openclaw/connect';
+import { resolveOpenClawConfigPath } from '../../openclaw/config-paths';
+import { buildOpenClawConnectParams, readOpenClawGatewayToken, readOpenClawGatewayUrl } from '../../openclaw/connect';
+import { detectOpenClaw } from '../../utils/openclaw-detect';
 import { createRateLimitMiddleware } from '../rate-limit';
 import { ConfigValidationError } from '../../config/api-endpoints';
 
@@ -211,9 +212,9 @@ export function registerDataRoutes(router: Router, ctx: RouteContext): void {
 
   router.get('/config/openclaw-token', openClawTokenRateLimit, (_req: Request, res: Response) => {
     try {
-      const openclawPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
-      if (!fs.existsSync(openclawPath)) {
-        res.status(404).json({ error: 'OpenClaw config not found at ~/.openclaw/openclaw.json' });
+      const resolution = resolveOpenClawConfigPath();
+      if (!resolution.exists) {
+        res.status(404).json({ error: 'OpenClaw config not found at ~/.openclaw/openclaw.json or the WSL2 gateway path' });
         return;
       }
       const token = readOpenClawGatewayToken();
@@ -221,7 +222,27 @@ export function registerDataRoutes(router: Router, ctx: RouteContext): void {
         res.status(404).json({ error: 'No token field in openclaw.json' });
         return;
       }
-      res.json({ token });
+      res.json({ token, source: resolution.source, path: resolution.path });
+    } catch (e) {
+      handleRouteError(res, e);
+    }
+  });
+
+  router.get('/config/openclaw-status', openClawConnectRateLimit, async (_req: Request, res: Response) => {
+    try {
+      const resolution = resolveOpenClawConfigPath();
+      const status = await detectOpenClaw();
+      const token = readOpenClawGatewayToken();
+      res.json({
+        ok: status.ok && Boolean(token),
+        configPath: resolution.path,
+        source: resolution.source,
+        exists: resolution.exists,
+        gatewayReachable: status.ok,
+        gatewayUrl: status.gatewayUrl || readOpenClawGatewayUrl(),
+        hasToken: Boolean(token),
+        tokenPreview: token ? `${token.slice(0, 4)}…${token.slice(-4)}` : null,
+      });
     } catch (e) {
       handleRouteError(res, e);
     }
@@ -235,14 +256,14 @@ export function registerDataRoutes(router: Router, ctx: RouteContext): void {
         return;
       }
 
-      const openclawPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
-      if (!fs.existsSync(openclawPath)) {
-        res.status(404).json({ error: 'OpenClaw config not found at ~/.openclaw/openclaw.json' });
+      const resolution = resolveOpenClawConfigPath();
+      if (!resolution.exists) {
+        res.status(404).json({ error: 'OpenClaw config not found at ~/.openclaw/openclaw.json or the WSL2 gateway path' });
         return;
       }
 
       const params = await buildOpenClawConnectParams(nonce);
-      res.json({ params });
+      res.json({ params, source: resolution.source });
     } catch (e) {
       handleRouteError(res, e);
     }

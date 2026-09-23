@@ -1,11 +1,14 @@
 import * as crypto from 'crypto';
 import fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 
+import { extractOpenClawGatewayPort, extractOpenClawGatewayToken, resolveOpenClawConfigPath } from './config-paths';
+import { WEBHOOK_PORT } from '../utils/constants';
 import { ensureDir, tandemDir } from '../utils/paths';
 
-const OPENCLAW_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+function openClawConfigPath(): string {
+  return resolveOpenClawConfigPath().path;
+}
 
 // ═══ Config Integrity Monitor ═══
 // Watch openclaw.json for unexpected modifications (prompt injection defense).
@@ -22,17 +25,18 @@ function hashFileSync(filePath: string): string | null {
 
 export function startConfigIntegrityMonitor(onTamper: (detail: string) => void): void {
   if (configWatcher) return;
-  if (!fs.existsSync(OPENCLAW_CONFIG_PATH)) return;
+  const configPath = openClawConfigPath();
+  if (!fs.existsSync(configPath)) return;
 
-  lastKnownConfigHash = hashFileSync(OPENCLAW_CONFIG_PATH);
+  lastKnownConfigHash = hashFileSync(configPath);
 
-  configWatcher = fs.watch(OPENCLAW_CONFIG_PATH, () => {
-    const newHash = hashFileSync(OPENCLAW_CONFIG_PATH);
+  configWatcher = fs.watch(configPath, () => {
+    const newHash = hashFileSync(configPath);
     if (newHash && newHash !== lastKnownConfigHash) {
       lastKnownConfigHash = newHash;
       // Only alert on suspicious patterns — normal config changes are fine
       try {
-        const content = JSON.parse(fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8'));
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         const suspicious: string[] = [];
         // CORS wildcard = classic prompt injection target
         const raw = JSON.stringify(content);
@@ -99,6 +103,7 @@ export interface OpenClawConnectParams {
   auth: {
     token: string;
   };
+  gatewayUrl: string;
   device: {
     id: string;
     publicKey: string;
@@ -196,16 +201,24 @@ async function loadOrCreateDeviceIdentity(filePath = OPENCLAW_IDENTITY_PATH): Pr
 }
 
 export function readOpenClawGatewayToken(): string | null {
-  if (!fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+  const resolution = resolveOpenClawConfigPath();
+  if (!resolution.exists) {
     return null;
   }
 
-  const data = JSON.parse(fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')) as {
-    token?: string;
-    gateway?: { auth?: { token?: string } };
-  };
+  const data = JSON.parse(fs.readFileSync(resolution.path, 'utf-8')) as Record<string, unknown>;
+  return extractOpenClawGatewayToken(data);
+}
 
-  return data.token || data.gateway?.auth?.token || null;
+export function readOpenClawGatewayUrl(): string {
+  const resolution = resolveOpenClawConfigPath();
+  if (!resolution.exists) {
+    return `ws://127.0.0.1:${WEBHOOK_PORT}`;
+  }
+
+  const data = JSON.parse(fs.readFileSync(resolution.path, 'utf-8')) as Record<string, unknown>;
+  const port = extractOpenClawGatewayPort(data, WEBHOOK_PORT);
+  return `ws://127.0.0.1:${port}`;
 }
 
 function buildDeviceAuthPayloadV3(params: {
@@ -280,6 +293,7 @@ export async function buildOpenClawConnectParams(nonce: string): Promise<OpenCla
     role: 'operator',
     scopes: [...OPENCLAW_SCOPES],
     auth: { token },
+    gatewayUrl: readOpenClawGatewayUrl(),
     device: {
       id: identity.deviceId,
       publicKey: base64UrlEncode(derivePublicKeyRaw(identity.publicKeyPem)),
