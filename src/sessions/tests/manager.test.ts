@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const fromPartition = vi.fn().mockReturnValue({ cookies: { set: vi.fn() } });
+const { fromPartition } = vi.hoisted(() => ({
+  fromPartition: vi.fn().mockReturnValue({ cookies: { set: vi.fn() } }),
+}));
 
 vi.mock('electron', () => ({
   session: { fromPartition },

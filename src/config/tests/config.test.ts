@@ -44,6 +44,15 @@ describe('ConfigManager', () => {
       expect(config.general.wingmanPanelDefaultOpen).toBe(false);
       expect(config.general.showBookmarksBar).toBe(true);
       expect(config.general.activeBackend).toBe('tandem');
+      expect(config.general.agentName).toBe('Wingman');
+      expect(config.general.agentDisplayName).toBe('AI Wingman');
+      expect(config.general.apiPort).toBe(8765);
+      expect(config.general.quickLinks).toHaveLength(6);
+      expect(config.general.quickLinks[0]).toMatchObject({
+        id: 'duckduckgo',
+        label: 'DuckDuckGo',
+        url: 'https://duckduckgo.com/',
+      });
     });
 
     it('honors TANDEM_ACTIVE_BACKEND from the gtx1660 launch environment', () => {
@@ -56,15 +65,6 @@ describe('ConfigManager', () => {
         if (previous === undefined) delete process.env.TANDEM_ACTIVE_BACKEND;
         else process.env.TANDEM_ACTIVE_BACKEND = previous;
       }
-      expect(config.general.agentName).toBe('Wingman');
-      expect(config.general.agentDisplayName).toBe('AI Wingman');
-      expect(config.general.apiPort).toBe(8765);
-      expect(config.general.quickLinks).toHaveLength(6);
-      expect(config.general.quickLinks[0]).toMatchObject({
-        id: 'duckduckgo',
-        label: 'DuckDuckGo',
-        url: 'https://duckduckgo.com/',
-      });
     });
 
     it('loads with correct screenshot defaults', () => {

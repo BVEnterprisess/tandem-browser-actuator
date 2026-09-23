@@ -49,10 +49,6 @@ describe('cdp-cookies', () => {
   });
 
   it('pulls cookies from the first CDP port that answers', async () => {
-    const socket = new EventEmitter() as EventEmitter & { send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
-    socket.send = vi.fn();
-    socket.close = vi.fn();
-
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({
@@ -60,20 +56,28 @@ describe('cdp-cookies', () => {
         json: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1:9229/devtools' }),
       });
 
-    const pending = fetchCdpCookies({
+    const result = await fetchCdpCookies({
       ports: [9222, 9229],
       fetchImpl: fetchImpl as unknown as typeof fetch,
-      openSocket: () => socket as unknown as import('ws').WebSocket,
+      openSocket: () => {
+        const socket = new EventEmitter() as EventEmitter & {
+          send: (raw: string) => void;
+          close: () => void;
+        };
+        socket.close = vi.fn();
+        socket.send = () => {
+          queueMicrotask(() => {
+            socket.emit('message', JSON.stringify({
+              id: 1,
+              result: { cookies: [{ name: 'sid', value: 'fixture', domain: 'example.com' }] },
+            }));
+          });
+        };
+        queueMicrotask(() => socket.emit('open'));
+        return socket as unknown as import('ws').WebSocket;
+      },
     });
 
-    await Promise.resolve();
-    socket.emit('open');
-    socket.emit('message', JSON.stringify({
-      id: 1,
-      result: { cookies: [{ name: 'sid', value: 'fixture', domain: 'example.com' }] },
-    }));
-
-    const result = await pending;
     expect(result.ok).toBe(true);
     expect(result.port).toBe(9229);
     expect(result.cookies).toHaveLength(1);
