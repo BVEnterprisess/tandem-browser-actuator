@@ -884,19 +884,23 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   await api.start();
   log.info(`Tandem API running on ${buildLocalApiBaseUrl(currentApiPort)}`);
 
-  // Security: Monitor openclaw.json for unauthorized modifications (prompt injection defense)
-  const { startConfigIntegrityMonitor } = await import('./openclaw/connect');
-  startConfigIntegrityMonitor((detail) => {
-    log.warn(`[ConfigIntegrity] ${detail}`);
-    // Alert the user via notification
-    const { Notification } = require('electron');
-    new Notification({
-      title: '⚠️ Security Alert — Tandem Browser',
-      body: detail,
-      urgency: 'critical',
-    }).show();
-
-  });
+  // Security: Monitor openclaw.json for unauthorized modifications (prompt injection defense).
+  // WSL UNC paths cannot use fs.watch on Win10; the monitor falls back to poll and must
+  // never reject this async startup path.
+  try {
+    const { startConfigIntegrityMonitor } = await import('./openclaw/connect');
+    startConfigIntegrityMonitor((detail) => {
+      log.warn(`[ConfigIntegrity] ${detail}`);
+      const { Notification } = require('electron');
+      new Notification({
+        title: '⚠️ Security Alert — Tandem Browser',
+        body: detail,
+        urgency: 'critical',
+      }).show();
+    });
+  } catch (err) {
+    log.warn(`OpenClaw config integrity monitor skipped: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // Phase 4: Wire GatekeeperWebSocket + NM proxy WebSocket onto the running HTTP server
   const httpServer = api.getHttpServer();

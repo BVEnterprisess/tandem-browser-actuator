@@ -149,7 +149,7 @@ const DEFAULT_CONFIG: TandemConfig = {
     googlePhotos: false,
   },
   voice: {
-    inputLanguage: 'nl-BE',
+    inputLanguage: 'en-US',
     autoSendOnSilence: true,
     silenceTimeoutSeconds: 2,
   },
@@ -345,12 +345,12 @@ export class ConfigManager {
           delete raw.general.keesPanelDefaultOpen;
         }
         const merged = this.deepMerge(DEFAULT_CONFIG as unknown as Record<string, unknown>, raw) as unknown as TandemConfig;
-        return this.normalizeConfig(merged);
+        return this.normalizeConfig(this.applyLaunchOverrides(merged));
       }
     } catch (e) {
       log.warn('Config file corrupted, using defaults:', e instanceof Error ? e.message : String(e));
     }
-    return this.normalizeConfig(JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as TandemConfig);
+    return this.normalizeConfig(this.applyLaunchOverrides(JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as TandemConfig));
   }
 
   /** Save config to disk */
@@ -382,6 +382,18 @@ export class ConfigManager {
       }
     }
     return result;
+  }
+
+  private applyLaunchOverrides(config: TandemConfig): TandemConfig {
+    const backend = String(process.env.TANDEM_ACTIVE_BACKEND || '').trim();
+    if (backend === 'tandem' || backend === 'openclaw' || backend === 'claude' || backend === 'both') {
+      config.general.activeBackend = backend;
+    }
+    const startPage = String(process.env.TANDEM_START_PAGE || '').trim();
+    if (startPage === 'wingman' || startPage === 'duckduckgo' || startPage === 'custom') {
+      config.general.startPage = startPage;
+    }
+    return config;
   }
 
   private normalizeConfig(config: TandemConfig): TandemConfig {

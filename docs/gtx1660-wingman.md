@@ -54,12 +54,20 @@ npm install          # first time only
 npm run launch:wingman
 ```
 
-From Windows PowerShell:
+From Windows PowerShell (NT path, not `/mnt/c/...`):
 
 ```powershell
-cd $env:LOCALAPPDATA\TandemBrowser-gtx1660
-.\deploy\gtx1660\launch-wingman.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\TandemBrowser-gtx1660\deploy\gtx1660\launch-wingman.ps1"
 ```
+
+That path is `C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660`. Do not paste `/home/jp/...` into PowerShell. The script skips Windows compile when `dist\main.js` is already present (WSL builds that tree).
+
+`npm run launch:wingman` from WSL still copies through `/mnt/c/...`, but the
+PowerShell `-RepoRoot` handoff is converted to
+`C:\Users\johnh\AppData\Local\TandemBrowser-gtx1660`.
+
+The OpenClaw config integrity monitor polls the live WSL UNC file instead of
+`fs.watch` (`EISDIR` on Win10). Token resolution still prefers that WSL file.
 
 `npm run start:gtx1660` is the same profile without the WSL gateway + NTFS
 sync orchestration. Use it only when the gateway is already up and you are
@@ -74,7 +82,7 @@ already on the Windows tree.
 | `C:\Users\johnh\.openclaw\openclaw.json` | Stale 112-byte stub. Resolver ignores it when the WSL file scores higher. |
 | `%APPDATA%\Tandem Browser\` | Tandem userData, cookies, partitions |
 | `%APPDATA%\Tandem Browser\Cache` | Chromium disk cache (NTFS) |
-| `%APPDATA%\Tandem Browser\config.json` | Set `general.activeBackend` to `openclaw` |
+| `%APPDATA%\Tandem Browser\config.json` | `npm run launch:wingman` forces `general.activeBackend=openclaw` |
 | `%LOCALAPPDATA%\TandemBrowser-gtx1660\` | Windows deploy tree (Electron + `node_modules`) |
 
 Override the config path with `TANDEM_OPENCLAW_CONFIG` if you must. Do not
@@ -132,6 +140,33 @@ curl -sS http://127.0.0.1:18789/health
 `openclaw-status` must show `ok: true`, `hasToken: true`, `source: wsl-unc`
 (or `env` if you overrode the path), and a token preview that is **not** the
 old Windows stub.
+
+From WSL, if `http://127.0.0.1:8765` misses the Windows bind:
+
+```bash
+npm run probe:api
+# prints the first reachable http://<host>:8765
+```
+
+## Chrome identities (Samwise + Black Vault)
+
+Cookies are the identity. Modern Chrome on this box stores them at
+`<Profile>/Network/Cookies` (DPAPI) and bookmarks at `AccountBookmarks`.
+Tandem does **not** decrypt DPAPI. The designed path is CDP:
+
+1. Close any Chrome started without a debug port (a second launch on the
+   same user-data-dir ignores `--remote-debugging-port`).
+2. `npm run chrome:cdp -- --profile="Profile 6"` for Samwise, or
+   `--profile=Default` for Black Vault Enterprises.
+3. After Tandem is up: `POST /import/chrome/identities` with
+   `{ "profiles": ["Default", "Profile 6"] }`.
+4. Cookies land in `persist:session-chrome-default` and
+   `persist:session-chrome-profile-6`. CDP can only see the Chrome
+   instance currently on `:9222`, so import one profile at a time or
+   pass `cdpProfile`.
+5. This endpoint does **not** overwrite `bookmarks.json`.
+
+Do not paste cookie values into chat or commit cookie files.
 
 ## What we refused to do
 

@@ -54,7 +54,7 @@ Each module is a self-contained subsystem with its own manager.
 | `extensions/` | `loader.ts`, `manager.ts` | Chrome extension loading and management |
 | `headless/` | `manager.ts` | Background browsing with dead-man switch |
 | `history/` | `manager.ts` | Browsing history, full-text search |
-| `import/` | `chrome-importer.ts` | Import bookmarks, history, cookies from Chrome |
+| `import/` | `chrome-importer.ts`, `chrome-paths.ts`, `cdp-cookies.ts` | Chrome bookmarks/history plus CDP identity cookies into isolated sessions |
 | `input/` | (multiple) | Keyboard/mouse input simulation via sendInputEvent |
 | `integrations/` | `google-photos.ts` | Google Photos upload for screenshots |
 | `ipc/` | (multiple) | IPC channel definitions and handlers |

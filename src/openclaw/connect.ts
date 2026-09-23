@@ -2,9 +2,18 @@ import * as crypto from 'crypto';
 import fs from 'fs';
 import * as path from 'path';
 
-import { extractOpenClawGatewayPort, extractOpenClawGatewayToken, resolveOpenClawConfigPath } from './config-paths';
+import {
+  canSafelyWatchOpenClawConfig,
+  extractOpenClawGatewayPort,
+  extractOpenClawGatewayToken,
+  resolveOpenClawConfigPath,
+} from './config-paths';
 import { WEBHOOK_PORT } from '../utils/constants';
+import { createLogger } from '../utils/logger';
 import { ensureDir, tandemDir } from '../utils/paths';
+
+const log = createLogger('OpenClawConnect');
+const CONFIG_POLL_MS = 5_000;
 
 function openClawConfigPath(): string {
   return resolveOpenClawConfigPath().path;
@@ -14,7 +23,13 @@ function openClawConfigPath(): string {
 // Watch openclaw.json for unexpected modifications (prompt injection defense).
 // Tandem NEVER writes to this file — any change is either the user or a compromised agent.
 let configWatcher: fs.FSWatcher | null = null;
+let configPollTimer: ReturnType<typeof setInterval> | null = null;
 let lastKnownConfigHash: string | null = null;
+
+export interface ConfigIntegrityMonitorOptions {
+  configPath?: string;
+  pollMs?: number;
+}
 
 function hashFileSync(filePath: string): string | null {
   try {
@@ -23,49 +38,97 @@ function hashFileSync(filePath: string): string | null {
   } catch { return null; }
 }
 
-export function startConfigIntegrityMonitor(onTamper: (detail: string) => void): void {
-  if (configWatcher) return;
-  const configPath = openClawConfigPath();
-  if (!fs.existsSync(configPath)) return;
+function inspectConfigForTamper(configPath: string, onTamper: (detail: string) => void): void {
+  const newHash = hashFileSync(configPath);
+  if (!newHash || newHash === lastKnownConfigHash) return;
+  lastKnownConfigHash = newHash;
+  try {
+    const content = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+      token?: unknown;
+      auth?: { token?: unknown };
+    };
+    const suspicious: string[] = [];
+    const raw = JSON.stringify(content);
+    if (raw.includes('"*"') && (raw.includes('cors') || raw.includes('CORS') || raw.includes('allowedOrigins'))) {
+      suspicious.push('CORS set to wildcard (*)');
+    }
+    if (typeof content.auth?.token === 'string' && content.auth.token.length < 10) {
+      suspicious.push(`Auth token suspiciously short: "${content.auth.token}"`);
+    }
+    if (typeof content.token === 'string' && content.token.length < 10) {
+      suspicious.push(`Gateway token suspiciously short: "${content.token}"`);
+    }
+    if (suspicious.length > 0) {
+      onTamper(`⚠️ SUSPICIOUS openclaw.json modification: ${suspicious.join(', ')}`);
+    }
+  } catch {
+    onTamper('openclaw.json was modified but could not be parsed — possible corruption');
+  }
+}
+
+function startPollingMonitor(
+  configPath: string,
+  onTamper: (detail: string) => void,
+  pollMs: number,
+): void {
+  if (configPollTimer) return;
+  log.info(`OpenClaw config integrity using poll (${pollMs}ms); native fs.watch is unsafe for ${configPath}`);
+  configPollTimer = setInterval(() => {
+    try {
+      inspectConfigForTamper(configPath, onTamper);
+    } catch {
+      // Poll must never escape — this path exists so WSL UNC cannot crash Tandem.
+    }
+  }, pollMs);
+  configPollTimer.unref?.();
+}
+
+export function startConfigIntegrityMonitor(
+  onTamper: (detail: string) => void,
+  options: ConfigIntegrityMonitorOptions = {},
+): void {
+  if (configWatcher || configPollTimer) return;
+  const configPath = options.configPath ?? openClawConfigPath();
+  try {
+    if (!fs.existsSync(configPath)) return;
+  } catch {
+    return;
+  }
 
   lastKnownConfigHash = hashFileSync(configPath);
+  const pollMs = options.pollMs ?? CONFIG_POLL_MS;
 
-  configWatcher = fs.watch(configPath, () => {
-    const newHash = hashFileSync(configPath);
-    if (newHash && newHash !== lastKnownConfigHash) {
-      lastKnownConfigHash = newHash;
-      // Only alert on suspicious patterns — normal config changes are fine
+  if (!canSafelyWatchOpenClawConfig(configPath)) {
+    startPollingMonitor(configPath, onTamper, pollMs);
+    return;
+  }
+
+  try {
+    configWatcher = fs.watch(configPath, () => {
       try {
-        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        const suspicious: string[] = [];
-        // CORS wildcard = classic prompt injection target
-        const raw = JSON.stringify(content);
-        if (raw.includes('"*"') && (raw.includes('cors') || raw.includes('CORS') || raw.includes('allowedOrigins'))) {
-          suspicious.push('CORS set to wildcard (*)');
-        }
-        // Auth token replaced with something trivially short
-        if (content.auth?.token && content.auth.token.length < 10) {
-          suspicious.push(`Auth token suspiciously short: "${content.auth.token}"`);
-        }
-        // Gateway token replaced
-        if (content.token && typeof content.token === 'string' && content.token.length < 10) {
-          suspicious.push(`Gateway token suspiciously short: "${content.token}"`);
-        }
-        // Only fire if something actually looks wrong
-        if (suspicious.length > 0) {
-          onTamper(`⚠️ SUSPICIOUS openclaw.json modification: ${suspicious.join(', ')}`);
-        }
+        inspectConfigForTamper(configPath, onTamper);
       } catch {
-        // Parse failure after modification = also suspicious
-        onTamper('openclaw.json was modified but could not be parsed — possible corruption');
+        // Watch callbacks must not become unhandled exceptions.
       }
-    }
-  });
+    });
+    configWatcher.on('error', () => {
+      try { configWatcher?.close(); } catch { /* already dead */ }
+      configWatcher = null;
+      startPollingMonitor(configPath, onTamper, pollMs);
+    });
+  } catch (err) {
+    log.warn(`fs.watch failed for OpenClaw config, falling back to poll: ${err instanceof Error ? err.message : String(err)}`);
+    startPollingMonitor(configPath, onTamper, pollMs);
+  }
 }
 
 export function stopConfigIntegrityMonitor(): void {
-  configWatcher?.close();
+  try { configWatcher?.close(); } catch { /* ignore */ }
   configWatcher = null;
+  if (configPollTimer) {
+    clearInterval(configPollTimer);
+    configPollTimer = null;
+  }
 }
 const OPENCLAW_IDENTITY_PATH = tandemDir('openclaw', 'identity', 'device.json');
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');

@@ -42,8 +42,8 @@
 | Auto-update | supported | partial | unsupported | Windows has a manual `electron-updater` check path and generated `latest.yml` metadata, but automatic update installation remains blocked until end-to-end update validation is complete. |
 | Custom titlebar / window chrome | supported | supported | supported | Windows source and packaged runs use frameless shell-owned controls. |
 | Stealth UA matches host OS | supported | supported | partial | Windows presents a Chrome-on-Windows UA persona. |
-| Chrome bookmark + history import | supported | supported | partial | Windows source runs scan `%LOCALAPPDATA%\Google\Chrome\User Data\<Profile>\` for bookmark and history import. |
-| Chrome cookie import | partial | unsupported | partial | Windows encrypted cookie import requires DPAPI support and is intentionally not implemented in phase 8; no risky dependency was added. |
+| Chrome bookmark + history import | supported | supported | partial | Windows source runs scan `%LOCALAPPDATA%\Google\Chrome\User Data\<Profile>\` for `Bookmarks` or `AccountBookmarks` plus History. |
+| Chrome cookie import | partial | partial | partial | Windows import uses CDP `Network.getAllCookies` or pre-exported JSON into isolated `persist:session-chrome-*` partitions. On-disk `Cookies` / `Network/Cookies` stay DPAPI-encrypted; DPAPI decryption is not implemented. |
 | Native messaging host detection | supported | supported | supported | Windows reads Chrome native messaging host registry keys under HKCU/HKLM and keeps the filesystem fallback. |
 | Voice transcription | supported | partial | partial | Windows source runs can use user-installed `whisper.exe` on `PATH`; Tandem does not bundle Whisper or download models. |
 | Video recorder with system audio | supported | unsupported | partial | Windows phase 11 spike found that the current `ffmpeg-static` binary exposes DirectShow capture but no WASAPI input, and this machine has no DirectShow loopback/system-audio device. |

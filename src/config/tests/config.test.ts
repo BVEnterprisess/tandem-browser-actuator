@@ -55,6 +55,18 @@ describe('ConfigManager', () => {
       });
     });
 
+    it('honors TANDEM_ACTIVE_BACKEND from the gtx1660 launch environment', () => {
+      const previous = process.env.TANDEM_ACTIVE_BACKEND;
+      process.env.TANDEM_ACTIVE_BACKEND = 'openclaw';
+      try {
+        const cm = new ConfigManager();
+        expect(cm.getConfig().general.activeBackend).toBe('openclaw');
+      } finally {
+        if (previous === undefined) delete process.env.TANDEM_ACTIVE_BACKEND;
+        else process.env.TANDEM_ACTIVE_BACKEND = previous;
+      }
+    });
+
     it('loads with correct screenshot defaults', () => {
       const cm = new ConfigManager();
       const config = cm.getConfig();
@@ -70,7 +82,7 @@ describe('ConfigManager', () => {
     it('loads with correct voice defaults', () => {
       const cm = new ConfigManager();
       const config = cm.getConfig();
-      expect(config.voice.inputLanguage).toBe('nl-BE');
+      expect(config.voice.inputLanguage).toBe('en-US');
       expect(config.voice.autoSendOnSilence).toBe(true);
       expect(config.voice.silenceTimeoutSeconds).toBe(2);
     });

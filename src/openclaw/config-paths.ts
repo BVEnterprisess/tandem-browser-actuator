@@ -24,6 +24,28 @@ export interface ResolveOpenClawConfigOptions {
 const DEFAULT_WSL_DISTRO = 'Ubuntu';
 const DEFAULT_WSL_USER = 'jp';
 
+export function isWslUncPath(filePath: string): boolean {
+  const normalized = String(filePath || '').replace(/\//g, '\\').toLowerCase();
+  return normalized.startsWith('\\\\wsl$\\') || normalized.startsWith('\\\\wsl.localhost\\');
+}
+
+/**
+ * Windows `fs.watch` on `\\wsl$\` / `\\wsl.localhost\` files throws EISDIR
+ * (the 9P UNC file is reported as a directory to the watcher). Token reads
+ * still work; only the native watcher is unsafe.
+ */
+export function canSafelyWatchOpenClawConfig(
+  filePath: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (!filePath) return false;
+  if (isWslUncPath(filePath)) return false;
+  if (platform === 'win32' && filePath.replace(/\//g, '\\').startsWith('\\\\')) {
+    return false;
+  }
+  return true;
+}
+
 function pathExists(candidate: string, exists: (candidate: string) => boolean): boolean {
   try {
     return exists(candidate);

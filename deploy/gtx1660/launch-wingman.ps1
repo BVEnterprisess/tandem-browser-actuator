@@ -10,15 +10,32 @@
 #>
 param(
   [string]$RepoRoot = $(if ($PSScriptRoot) { Split-Path (Split-Path $PSScriptRoot -Parent) -Parent } else { (Get-Location).Path }),
-  [switch]$SkipCompile
+  [switch]$SkipCompile,
+  [switch]$ForceCompile
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Convert-WslMountPath([string]$Candidate) {
+  if ([string]::IsNullOrWhiteSpace($Candidate)) { return $Candidate }
+  $normalized = $Candidate.Trim().Replace('\', '/')
+  if ($normalized -match '^/mnt/([a-zA-Z])/(.*)$') {
+    return ('{0}:\{1}' -f $Matches[1].ToUpper(), ($Matches[2] -replace '/', '\'))
+  }
+  if ($normalized -match '^mnt/([a-zA-Z])/(.*)$') {
+    return ('{0}:\{1}' -f $Matches[1].ToUpper(), ($Matches[2] -replace '/', '\'))
+  }
+  return $Candidate
+}
+
+$RepoRoot = Convert-WslMountPath $RepoRoot
 $RigPath = Join-Path $PSScriptRoot 'rig.json'
 $Rig = Get-Content -Raw -Path $RigPath | ConvertFrom-Json
 $NodeHome = $Rig.windows.nodeHome
 $env:Path = "$NodeHome;$env:Path"
 $env:TANDEM_PERF_PROFILE = 'gtx1660'
+$env:TANDEM_ACTIVE_BACKEND = 'openclaw'
+$env:TANDEM_START_PAGE = 'wingman'
 $env:TANDEM_WSL_DISTRO = $Rig.wsl.distro
 $env:TANDEM_WSL_USER = $Rig.wsl.user
 $env:TANDEM_OPENCLAW_CONFIG = ('\\wsl$\' + $Rig.wsl.distro + ($Rig.wsl.openclawConfig -replace '/', '\'))
@@ -26,6 +43,10 @@ $env:TANDEM_API_PORT = [string]$Rig.tandem.apiPort
 
 Write-Host "[gtx1660] Repo: $RepoRoot"
 Write-Host "[gtx1660] OpenClaw config: $env:TANDEM_OPENCLAW_CONFIG"
+
+if (-not (Test-Path -LiteralPath $RepoRoot)) {
+  throw "RepoRoot does not exist as a Windows path: $RepoRoot"
+}
 
 $Wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
 if ($Wsl) {
@@ -35,6 +56,17 @@ if ($Wsl) {
 
 if (-not (Test-Path (Join-Path $NodeHome 'node.exe'))) {
   throw "Windows Node not found at $NodeHome"
+}
+
+$ApplyConfig = Join-Path $PSScriptRoot 'apply-wingman-config.js'
+if (Test-Path -LiteralPath $ApplyConfig) {
+  Write-Host '[gtx1660] Forcing activeBackend=openclaw in Tandem config.json'
+  & (Join-Path $NodeHome 'node.exe') $ApplyConfig
+}
+
+if (-not $ForceCompile -and -not $SkipCompile -and (Test-Path -LiteralPath (Join-Path $RepoRoot 'dist\main.js'))) {
+  Write-Host '[gtx1660] dist/main.js present — skipping Windows compile (this tree is built on WSL)'
+  $SkipCompile = $true
 }
 
 if (-not $SkipCompile) {

@@ -59,6 +59,14 @@ describe('MCP data tools', () => {
     });
   });
 
+  describe('tandem_chrome_import_identities', () => {
+    it('imports isolated Chrome identities', async () => {
+      mockApiCall.mockResolvedValueOnce({ ok: true, identities: [] });
+      await getHandler(tools, 'tandem_chrome_import_identities')({ profiles: ['Profile 6'] });
+      expect(mockApiCall).toHaveBeenCalledWith('POST', '/import/chrome/identities', { profiles: ['Profile 6'] });
+    });
+  });
+
   describe('tandem_chrome_sync_start', () => {
     it('starts sync', async () => {
       mockApiCall.mockResolvedValueOnce({ syncing: true });
